@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -29,11 +30,16 @@ export default function OnboardingScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const router = useRouter();
 
+  const handleFinish = async () => {
+    await AsyncStorage.setItem('onboarding_seen', 'true');
+    router.replace('/login');
+  };
+
   const handleNext = () => {
     if (currentIndex < slides.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
-      router.replace('/login');
+      handleFinish();
     }
   };
 
@@ -63,7 +69,7 @@ export default function OnboardingScreen() {
       </TouchableOpacity>
 
       {currentIndex < slides.length - 1 && (
-        <TouchableOpacity onPress={() => router.replace('/login')}>
+        <TouchableOpacity onPress={handleFinish}>
           <Text style={styles.skip}>Skip</Text>
         </TouchableOpacity>
       )}
