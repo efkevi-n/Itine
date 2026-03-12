@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  ScrollView, Animated
+  ScrollView
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { scheduleAllTripNotifications } from '../utils/notifications';
 
 const mockItinerary = [
   {
@@ -56,6 +57,11 @@ export default function ItineraryReviewScreen() {
   const router = useRouter();
   const [expandedDay, setExpandedDay] = useState<number | null>(1);
 
+  const handleConfirm = async () => {
+    await scheduleAllTripNotifications('Paris, France', new Date('2025-06-10'));
+    router.replace('/(tabs)');
+  };
+
   return (
     <ScrollView style={styles.container}>
       <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -87,10 +93,7 @@ export default function ItineraryReviewScreen() {
               key={item.label}
               style={[
                 styles.budgetSegment,
-                {
-                  flex: item.amount / totalBudget,
-                  backgroundColor: item.color,
-                },
+                { flex: item.amount / totalBudget, backgroundColor: item.color },
               ]}
             />
           ))}
@@ -174,8 +177,12 @@ export default function ItineraryReviewScreen() {
         </View>
       ))}
 
-      <TouchableOpacity style={styles.confirmBtn} onPress={() => router.push('/qr-pass')}>
+      <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirm}>
         <Text style={styles.confirmText}>✅ Confirm & Generate QR Pass</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.rejectBtn} onPress={() => router.back()}>
+        <Text style={styles.rejectText}>🔄 Regenerate</Text>
       </TouchableOpacity>
 
       <View style={{ height: 40 }} />
@@ -220,6 +227,8 @@ const styles = StyleSheet.create({
   activityRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   activityName: { fontSize: 13, color: '#fff', flex: 1 },
   activityCost: { fontSize: 13, color: '#f59e0b' },
-  confirmBtn: { backgroundColor: '#22c55e', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8 },
+  confirmBtn: { backgroundColor: '#22c55e', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8, marginBottom: 12 },
   confirmText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  rejectBtn: { backgroundColor: '#1e293b', borderRadius: 12, padding: 16, alignItems: 'center' },
+  rejectText: { color: '#38bdf8', fontWeight: 'bold', fontSize: 16 },
 });
