@@ -3,6 +3,11 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator 
 import { useRouter } from 'expo-router';
 import { authApi } from '@/api/auth';
 import { saveTokens } from '@/utils/auth';
+import {
+  getPendingDeepLink,
+  clearPendingDeepLink,
+  handleDeepLink,
+} from '@/utils/deepLinkHandler';
 import { getErrorMessage } from '@/utils/errorHandler';
 import { theme } from '@/constants/theme';
 
@@ -25,7 +30,13 @@ export default function LoginScreen() {
         await saveTokens(accessToken, refreshToken);
       }
 
-      router.replace('/(tabs)');
+      const pendingUrl = getPendingDeepLink();
+      if (pendingUrl) {
+        clearPendingDeepLink();
+        await handleDeepLink(pendingUrl, router);
+      } else {
+        router.replace('/(tabs)');
+      }
     } catch (err: unknown) {
       setError(getErrorMessage(err));
     } finally {

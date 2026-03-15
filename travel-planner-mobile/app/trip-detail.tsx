@@ -24,6 +24,8 @@ import {
 import { formatTripDateRange } from "@/utils/dateFormat";
 import { useConnectivity } from "@/hooks/useConnectivity";
 import { cacheTrip, getCachedTrip } from "@/utils/offlineCache";
+import { getDeepLinkForTrip } from "@/utils/deepLinkHandler";
+import { SHARE_FOOTER } from "@/constants/deepLinks";
 
 export default function TripDetailScreen() {
   const router = useRouter();
@@ -83,19 +85,21 @@ export default function TripDetailScreen() {
   }, [resolvedId, loadData]);
 
   const handleShare = useCallback(async () => {
-    if (!trip) return;
+    if (!trip || !resolvedId) return;
+    const deepLink = getDeepLinkForTrip(resolvedId);
     const message = [
       `🌍 My trip to ${trip.destination}`,
       `📅 ${formatTripDateRange(trip.startDate, trip.endDate)}`,
       `💰 Budget: ${trip.currency} ${trip.totalBudget.toLocaleString()}`,
-      "✈️ Powered by AI Travel Planner",
+      `🔗 ${deepLink}`,
+      SHARE_FOOTER,
     ].join("\n");
     try {
       await Share.share({ message });
     } catch {
       // ignore
     }
-  }, [trip]);
+  }, [trip, resolvedId]);
 
   if (!resolvedId) {
     return (

@@ -45,13 +45,14 @@ function getCacheKey(tripId: string): string {
 export default function QRPassScreen() {
   const router = useRouter();
   const { isOnline } = useConnectivity();
-  const { tripId } = useLocalSearchParams<{ tripId?: string }>();
+  const { tripId, jti: paramJti } = useLocalSearchParams<{ tripId?: string; jti?: string }>();
   const { lockState, unlock, isLocked, resetLockTimer } = useBiometricLock();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(QR_REFRESH_INTERVAL);
   const [jti, setJti] = useState<string | null>(null);
   const [otp, setOtp] = useState<string | null>(null);
+  const [resolvedTripId, setResolvedTripId] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>('');
   const [userPhotoUrl, setUserPhotoUrl] = useState<string | null>(null);
   const [destination, setDestination] = useState<string>('');
@@ -59,8 +60,9 @@ export default function QRPassScreen() {
   const [endDate, setEndDate] = useState<string>('');
   const [offlineMode, setOfflineMode] = useState(false);
   const countdownRef = useRef<number | null>(null);
+  const loadedByJtiRef = useRef(false);
 
-  const currentTripId = typeof tripId === 'string' ? tripId : undefined;
+  const currentTripId = (typeof tripId === 'string' ? tripId : undefined) ?? resolvedTripId ?? undefined;
 
   const savePassToStorage = useCallback(async (data: CachedPass) => {
     if (!currentTripId) return;
@@ -162,13 +164,62 @@ export default function QRPassScreen() {
     }
   }, [currentTripId, savePassToStorage, loadPassFromStorage]);
 
+  const loadDataByJti = useCallback(async () => {
+    const passJti = typeof paramJti === 'string' ? paramJti : '';
+    if (!passJti) return;
+    setLoadError(null);
+    setLoading(true);
+    setOfflineMode(false);
+    try {
+      const [passRes, otpRes] = await Promise.all([
+        trippassApi.getTripPass(passJti),
+        trippassApi.getOtp(passJti),
+      ]);
+      const passBody = passRes.data as Record<string, unknown> | undefined;
+      const tripIdFromPass = passBody?.tripId != null ? String(passBody.tripId) : null;
+      const otpBody = otpRes.data as Record<string, unknown> | undefined;
+      const newOtp = typeof otpBody?.otp === 'string' ? otpBody.otp : null;
+      setJti(passJti);
+      setOtp(newOtp);
+      if (tripIdFromPass) setResolvedTripId(tripIdFromPass);
+      if (tripIdFromPass) {
+        const [profileRes, tripRes] = await Promise.all([
+          userApi.getProfile().catch(() => ({ data: null })),
+          tripsApi.getById(tripIdFromPass).catch(() => ({ data: null })),
+        ]);
+        const profile = profileRes.data as { name?: string; photoUrl?: string } | null;
+        if (profile) {
+          setUserName(typeof profile.name === 'string' ? profile.name : '');
+          setUserPhotoUrl(typeof profile.photoUrl === 'string' ? profile.photoUrl : null);
+        }
+        const trip = tripRes.data as { destination?: string; startDate?: string; endDate?: string; start_date?: string; end_date?: string } | null;
+        if (trip) {
+          setDestination(trip.destination ?? '');
+          setStartDate(trip.startDate ?? trip.start_date ?? '');
+          setEndDate(trip.endDate ?? trip.end_date ?? '');
+        }
+      }
+    } catch {
+      setLoadError('Could not load pass. Please check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [paramJti]);
+
   useEffect(() => {
+    if (paramJti && !tripId) {
+      if (!loadedByJtiRef.current) {
+        loadedByJtiRef.current = true;
+        loadDataByJti();
+      }
+      return;
+    }
     if (!currentTripId) {
       router.replace('/(tabs)');
       return;
     }
     loadData();
-  }, [currentTripId, router, loadData]);
+  }, [currentTripId, tripId, paramJti, router, loadData, loadDataByJti]);
 
   const refreshOtp = useCallback(async () => {
     if (!jti || !isOnline) return;
@@ -216,7 +267,7 @@ export default function QRPassScreen() {
     ? formatTripDateRange(startDate, endDate)
     : '';
 
-  if (!currentTripId) {
+  if (!currentTripId && !paramJti) {
     return null;
   }
 
