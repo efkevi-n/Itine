@@ -387,14 +387,24 @@ export default function ItineraryReviewScreen() {
         </View>
       </View>
 
-      <TouchableOpacity
-        style={styles.budgetNavBtn}
-        onPress={() =>
-          router.push({ pathname: '/budget-breakdown', params: { tripId } })
-        }
-      >
-        <Text style={styles.budgetNavBtnText}>💰 Budget Breakdown</Text>
-      </TouchableOpacity>
+      <View style={styles.navRow}>
+        <TouchableOpacity
+          style={styles.budgetNavBtn}
+          onPress={() =>
+            router.push({ pathname: '/budget-breakdown', params: { tripId } })
+          }
+        >
+          <Text style={styles.budgetNavBtnText}>💰 Budget Breakdown</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.editNavBtn}
+          onPress={() =>
+            router.push({ pathname: '/edit-itinerary', params: { tripId } } as unknown as Parameters<typeof router.push>[0])
+          }
+        >
+          <Text style={styles.editNavBtnText}>✏️ Edit</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Budget Breakdown */}
       <View style={styles.budgetCard}>
@@ -529,14 +539,23 @@ const styles = StyleSheet.create({
   centered: { justifyContent: 'center', alignItems: 'center' },
   loadingText: { color: '#94a3b8', marginTop: 12 },
   generatingSubtext: { color: '#64748b', marginTop: 8, fontSize: 14 },
+  navRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   budgetNavBtn: {
+    flex: 1,
     backgroundColor: '#1e293b',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
-    marginBottom: 16,
   },
   budgetNavBtnText: { color: '#38bdf8', fontWeight: 'bold', fontSize: 16 },
+  editNavBtn: {
+    flex: 1,
+    backgroundColor: '#1e293b',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  editNavBtnText: { color: '#38bdf8', fontWeight: 'bold', fontSize: 16 },
   retryBtn: {
     marginTop: 16,
     paddingVertical: 12,

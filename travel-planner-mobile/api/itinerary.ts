@@ -2,7 +2,7 @@ import { api } from './client';
 
 /** Request body for POST /itinerary/generate */
 export interface GenerateItineraryDto {
-  tripId?: number;
+  tripId?: number | string;
   [key: string]: unknown;
 }
 
@@ -65,8 +65,8 @@ export const itineraryApi = {
   getItinerary: (tripId: TripId) =>
     api.get<ItineraryResponse>(`/itinerary/${toId(tripId)}`),
 
-  updateItinerary: (tripId: TripId) =>
-    api.patch<ItineraryResponse>(`/itinerary/${toId(tripId)}`),
+  updateItinerary: (tripId: TripId, data?: Record<string, unknown>) =>
+    api.patch<ItineraryResponse>(`/itinerary/${toId(tripId)}`, data),
 
   getCostBreakdown: (tripId: TripId) =>
     api.get<CostBreakdownResponse>(`/itinerary/${toId(tripId)}/cost-breakdown`),
