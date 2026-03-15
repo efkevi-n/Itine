@@ -8,6 +8,8 @@ import { tripsApi } from '@/api/trips';
 import { itineraryApi } from '@/api/itinerary';
 import { formatTripDateRange } from '@/utils/dateFormat';
 import { scheduleTripReminder } from '@/utils/notifications';
+import { saveNotification } from '@/utils/notificationStore';
+import type { AppNotification } from '@/types/notification';
 
 // UI display types
 interface ActivityItem {
@@ -284,6 +286,16 @@ export default function ItineraryReviewScreen() {
           startDate: trip.startDate,
         }).catch(() => {});
       }
+      const tripConfirmedNotification: AppNotification = {
+        id: `trip_confirmed_${tripId}_${Date.now()}`,
+        type: 'trip_confirmed',
+        title: 'Trip confirmed',
+        body: trip?.destination ? `Your trip to ${trip.destination} is confirmed. Your QR Pass is ready.` : 'Your trip is confirmed. Your QR Pass is ready.',
+        tripId: String(tripId),
+        isRead: false,
+        createdAt: new Date().toISOString(),
+      };
+      saveNotification(tripConfirmedNotification).catch(() => {});
       router.replace({ pathname: '/qr-pass', params: { tripId } });
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } }; message?: string };

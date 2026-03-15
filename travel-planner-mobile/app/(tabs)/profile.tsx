@@ -7,6 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { userApi } from '@/api/user';
 import { authApi } from '@/api/auth';
 import { cancelAllReminders } from '@/utils/notifications';
+import { clearAllNotifications } from '@/utils/notificationStore';
 import { clearTokens } from '@/utils/auth';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { ProfileForm } from '@/components/ProfileForm';
@@ -99,6 +100,7 @@ export default function ProfileScreen() {
 
   const handleLogout = useCallback(async () => {
     await cancelAllReminders();
+    await clearAllNotifications();
     try {
       await authApi.logout();
     } catch {
