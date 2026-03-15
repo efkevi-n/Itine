@@ -61,7 +61,7 @@ export default function ProfileScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -70,10 +70,12 @@ export default function ProfileScreen() {
     setUploadLoading(true);
     setSaveError(null);
     try {
-      const asset = result.assets[0];
-      const uri = asset.uri;
       const formData = new FormData();
-      formData.append('file', { uri, type: asset.mimeType ?? 'image/jpeg', name: 'photo.jpg' } as unknown as Blob);
+      formData.append('photo', {
+        uri: result.assets[0].uri,
+        type: 'image/jpeg',
+        name: 'avatar.jpg',
+      } as unknown as Blob);
       await userApi.uploadPhoto(formData);
       const res = await userApi.getProfile();
       const view = mapProfileToView((res.data ?? {}) as Record<string, unknown>);

@@ -24,9 +24,7 @@ export const userApi = {
     api.patch<UserProfile>('/users/profile', data),
 
   uploadPhoto: (formData: FormData) =>
-    api.post<{ url?: string }>('/users/profile/photo', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }),
+    api.post<{ url?: string }>('/users/profile/photo', formData),
 
   deleteAccount: () =>
     api.delete('/users/account'),
