@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Linking } from 'react-native';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
@@ -12,6 +12,7 @@ import { OFFLINE_MESSAGES } from '@/constants/offline';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useConnectivity } from '@/hooks/useConnectivity';
 import type { AppNotification, NotificationType } from '@/types/notification';
+import { handleDeepLink } from '@/utils/deepLinkHandler';
 import { saveNotification } from '@/utils/notificationStore';
 import { registerForPushNotifications } from '@/utils/notifications';
 import { retryQueuedRequests } from '@/utils/requestQueue';
@@ -27,6 +28,8 @@ const VALID_TYPES: NotificationType[] = [
   'flight_reminder', 'qr_scanned', 'trip_completed',
 ];
 const TRIP_ID_KEY = 'tripId';
+const JTI_KEY = 'jti';
+const TYPE_KEY = 'type';
 
 function normalizeType(dataType: unknown): NotificationType {
   if (typeof dataType === 'string' && VALID_TYPES.includes(dataType as NotificationType)) {
@@ -54,6 +57,22 @@ export default function RootLayout() {
   useEffect(() => {
     registerForPushNotifications().catch(() => {});
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    Linking.getInitialURL().then((initialUrl) => {
+      if (cancelled || !initialUrl) return;
+      handleDeepLink(initialUrl, router).catch(() => {});
+    });
+    return () => { cancelled = true; };
+  }, [router]);
+
+  useEffect(() => {
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      handleDeepLink(url, router).catch(() => {});
+    });
+    return () => sub.remove();
+  }, [router]);
 
   useEffect(() => {
     const wasOffline = prevStatusRef.current === 'offline';
@@ -89,7 +108,9 @@ export default function RootLayout() {
       const content = response.notification.request.content;
       const data = (content.data ?? {}) as Record<string, unknown>;
       const type = normalizeType(data.type);
+      const dataType = typeof data[TYPE_KEY] === 'string' ? data[TYPE_KEY] : type;
       const tripId = typeof data[TRIP_ID_KEY] === 'string' ? data[TRIP_ID_KEY] : undefined;
+      const jti = typeof data[JTI_KEY] === 'string' ? data[JTI_KEY] : undefined;
       const appNotif: AppNotification = {
         id: `tap_${Date.now()}_${Math.random().toString(36).slice(2)}`,
         type,
@@ -100,6 +121,14 @@ export default function RootLayout() {
         createdAt: new Date().toISOString(),
       };
       saveNotification(appNotif).catch(() => {});
+      if (dataType === 'trip_confirmed' && tripId) {
+        router.push({ pathname: '/trip-detail', params: { tripId } });
+        return;
+      }
+      if (dataType === 'qr_scanned' && jti) {
+        router.push({ pathname: '/qr-pass', params: { jti } });
+        return;
+      }
       const route = NOTIFICATION_ROUTES[type];
       if (tripId && (route === '/qr-pass' || route === '/trip-detail')) {
         router.push({ pathname: route as '/qr-pass' | '/trip-detail', params: { tripId } });

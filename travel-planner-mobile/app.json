@@ -5,13 +5,22 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "travelplannermobile",
+    "scheme": "travplanner",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.travplanner.app"
     },
     "android": {
+      "package": "com.travplanner.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [{ "scheme": "travplanner" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
