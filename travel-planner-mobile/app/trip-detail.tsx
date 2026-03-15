@@ -1,192 +1,279 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from "react";
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  ScrollView, Share
-} from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-
-const mockTrips: Record<string, any> = {
-  '1': {
-    destination: '🗼 Paris, France',
-    dates: 'Jun 10 – Jun 20, 2025',
-    budget: '$2,400',
-    status: 'Confirmed',
-    bookings: [
-      {
-        type: 'Flight',
-        emoji: '✈️',
-        provider: 'Turkish Airlines',
-        reference: 'TK1234',
-        datetime: 'Jun 10, 2025 — 10:00 AM',
-        detail: 'Istanbul (IST) → Paris (CDG)',
-      },
-      {
-        type: 'Hotel',
-        emoji: '🏨',
-        provider: 'Ibis Paris Centre',
-        reference: 'HTL-98123',
-        datetime: 'Jun 10 – Jun 20, 2025',
-        detail: 'Budget Room — 10 nights',
-      },
-      {
-        type: 'Transport',
-        emoji: '🚕',
-        provider: 'Paris Taxi Service',
-        reference: 'TRN-45678',
-        datetime: 'Jun 10, 2025 — 02:00 PM',
-        detail: 'CDG Airport → Hotel',
-      },
-      {
-        type: 'Activity',
-        emoji: '🎭',
-        provider: 'Paris Tours',
-        reference: 'ACT-11234',
-        datetime: 'Jun 12, 2025 — 09:00 AM',
-        detail: 'Eiffel Tower + Louvre Tour',
-      },
-    ],
-  },
-  '2': {
-    destination: '🏝️ Bali, Indonesia',
-    dates: 'Aug 1 – Aug 14, 2025',
-    budget: '$1,800',
-    status: 'Pending',
-    bookings: [],
-  },
-  '3': {
-    destination: '🗽 New York, USA',
-    dates: 'Mar 5 – Mar 10, 2025',
-    budget: '$3,200',
-    status: 'Completed',
-    bookings: [],
-  },
-  '4': {
-    destination: '🌍 Safari, Kenya',
-    dates: 'Sep 15 – Sep 25, 2025',
-    budget: '$5,000',
-    status: 'Active',
-    bookings: [],
-  },
-};
-
-const statusColors: Record<string, string> = {
-  Pending: '#f59e0b',
-  Confirmed: '#38bdf8',
-  Active: '#22c55e',
-  Completed: '#94a3b8',
-};
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  Share,
+} from "react-native";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { tripsApi } from "@/api/trips";
+import { bookingsApi } from "@/api/bookings";
+import { TripHeader } from "@/components/TripHeader";
+import { BookingCard } from "@/components/BookingCard";
+import { OfflineBanner } from "@/components/OfflineBanner";
+import type { TripDetailView, BookingDetailView } from "@/types/trip";
+import { isQrPassAvailable } from "@/utils/tripStatus";
+import { theme } from "@/constants/theme";
+import {
+  mapTripToDetailView,
+  mapBookingToDetailView,
+} from "@/utils/tripDetailMappers";
+import { formatTripDateRange } from "@/utils/dateFormat";
+import { useConnectivity } from "@/hooks/useConnectivity";
+import { cacheTrip, getCachedTrip } from "@/utils/offlineCache";
 
 export default function TripDetailScreen() {
   const router = useRouter();
-  const { id, tripId } = useLocalSearchParams<{ id?: string; tripId?: string }>();
+  const { isOnline } = useConnectivity();
+  const { id, tripId } = useLocalSearchParams<{
+    id?: string;
+    tripId?: string;
+  }>();
   const resolvedId = tripId ?? id;
-  const trip = resolvedId ? mockTrips[resolvedId] : undefined;
+  const [trip, setTrip] = useState<TripDetailView | null>(null);
+  const [bookings, setBookings] = useState<BookingDetailView[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  if (!trip) {
+  const loadData = useCallback(async () => {
+    if (!resolvedId) return;
+    setError(null);
+    setLoading(true);
+    try {
+      const [tripRes, bookingsRes] = await Promise.all([
+        tripsApi.getById(resolvedId),
+        bookingsApi.getBookingsForTrip(resolvedId).catch(() => ({ data: [] })),
+      ]);
+      const tripData = tripRes.data as Record<string, unknown>;
+      if (!tripData || typeof tripData !== "object") {
+        setError("Trip not found.");
+        setLoading(false);
+        return;
+      }
+      setTrip(mapTripToDetailView(tripData));
+      const rawList = Array.isArray(bookingsRes.data) ? bookingsRes.data : [];
+      setBookings(
+        rawList.map((b) =>
+          mapBookingToDetailView(b as Record<string, unknown>),
+        ),
+      );
+      await cacheTrip(resolvedId, { trip: tripData, bookings: rawList });
+    } catch {
+      if (!isOnline) {
+        const cached = await getCachedTrip(resolvedId);
+        const data = cached?.data as { trip?: Record<string, unknown>; bookings?: unknown[] } | undefined;
+        if (data?.trip) {
+          setTrip(mapTripToDetailView(data.trip));
+          const rawList = Array.isArray(data.bookings) ? data.bookings : [];
+          setBookings(rawList.map((b) => mapBookingToDetailView(b as Record<string, unknown>)));
+          setError(null);
+        } else setError("Offline. No cached trip.");
+      } else setError("Failed to load trip. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [resolvedId, isOnline]);
+
+  useEffect(() => {
+    if (!resolvedId) return;
+    loadData();
+  }, [resolvedId, loadData]);
+
+  const handleShare = useCallback(async () => {
+    if (!trip) return;
+    const message = [
+      `🌍 My trip to ${trip.destination}`,
+      `📅 ${formatTripDateRange(trip.startDate, trip.endDate)}`,
+      `💰 Budget: ${trip.currency} ${trip.totalBudget.toLocaleString()}`,
+      "✈️ Powered by AI Travel Planner",
+    ].join("\n");
+    try {
+      await Share.share({ message });
+    } catch {
+      // ignore
+    }
+  }, [trip]);
+
+  if (!resolvedId) {
     return (
-      <View style={styles.container}>
+      <View style={styles.center}>
         <Text style={styles.errorText}>Trip not found.</Text>
       </View>
     );
   }
 
-  const handleShare = async () => {
-    try {
-      await Share.share({
-        message: `✈️ My Trip to ${trip.destination}\n📅 ${trip.dates}\n💰 Budget: ${trip.budget}\nStatus: ${trip.status}\n\nBooked via Travel Planner App`,
-      });
-    } catch (error) {
-      console.error(error);
-    }
-  };
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color="#38bdf8" />
+        <Text style={styles.loadingText}>Loading trip...</Text>
+      </View>
+    );
+  }
+
+  if (error || !trip) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <Text style={styles.errorText}>{error ?? "Trip not found."}</Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={loadData}>
+          <Text style={styles.retryBtnText}>Retry</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.backLink}>← Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const showQr = isQrPassAvailable(trip.status);
+  const isActive = trip.status.toUpperCase() === "ACTIVE";
 
   return (
     <ScrollView style={styles.container}>
+      <OfflineBanner visible={!isOnline} />
       <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
         <Text style={styles.backText}>← Back</Text>
       </TouchableOpacity>
-
-      {/* Header */}
-      <Text style={styles.destination}>{trip.destination}</Text>
-      <Text style={styles.dates}>📅 {trip.dates}</Text>
-
-      <View style={[styles.badge, { backgroundColor: statusColors[trip.status] + '33' }]}>
-        <Text style={[styles.badgeText, { color: statusColors[trip.status] }]}>{trip.status}</Text>
-      </View>
-
-      <Text style={styles.budget}>💰 Total Budget: {trip.budget}</Text>
-
-      {/* Action Buttons */}
+      <TripHeader trip={trip} />
       <View style={styles.buttonRow}>
-        <TouchableOpacity style={styles.qrBtn} onPress={() => router.push('/qr-pass')}>
-          <Text style={styles.qrBtnText}>🎫 Show QR Pass</Text>
+        <TouchableOpacity
+          style={styles.budgetBtn}
+          onPress={() =>
+            router.push({
+              pathname: "/budget-breakdown",
+              params: { tripId: resolvedId },
+            })
+          }
+        >
+          <Text style={styles.budgetBtnText}>💰 Budget</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
+        {isActive && (
+          <TouchableOpacity
+            style={styles.trackLiveBtn}
+            onPress={() =>
+              router.push({
+                pathname: "/active-trip",
+                params: { tripId: resolvedId },
+              })
+            }
+          >
+            <Text style={styles.trackLiveBtnText}>📍 Track Live</Text>
+          </TouchableOpacity>
+        )}
+        {showQr && (
+          <TouchableOpacity
+            style={styles.qrBtn}
+            onPress={() =>
+              router.push({
+                pathname: "/qr-pass",
+                params: { tripId: resolvedId },
+              })
+            }
+          >
+            <Text style={styles.qrBtnText}>🎫 Show QR Pass</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          style={showQr || isActive ? styles.shareBtn : styles.shareBtnFull}
+          onPress={handleShare}
+        >
           <Text style={styles.shareBtnText}>📤 Share Trip</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Bookings */}
       <Text style={styles.sectionTitle}>Your Bookings</Text>
-
-      {trip.bookings.length === 0 ? (
+      {bookings.length === 0 ? (
         <View style={styles.emptyCard}>
-          <Text style={styles.emptyText}>No bookings yet. Bookings will appear here once confirmed.</Text>
+          <Text style={styles.emptyText}>
+            No bookings yet. Bookings will appear here once confirmed.
+          </Text>
         </View>
       ) : (
-        trip.bookings.map((booking: any, index: number) => (
-          <View key={index} style={styles.bookingCard}>
-            <View style={styles.bookingHeader}>
-              <Text style={styles.bookingEmoji}>{booking.emoji}</Text>
-              <View style={styles.bookingInfo}>
-                <Text style={styles.bookingType}>{booking.type}</Text>
-                <Text style={styles.bookingProvider}>{booking.provider}</Text>
-              </View>
-              <View style={styles.refContainer}>
-                <Text style={styles.refLabel}>REF</Text>
-                <Text style={styles.refCode}>{booking.reference}</Text>
-              </View>
-            </View>
-            <View style={styles.bookingDivider} />
-            <Text style={styles.bookingDatetime}>🕐 {booking.datetime}</Text>
-            <Text style={styles.bookingDetail}>{booking.detail}</Text>
-          </View>
-        ))
+        bookings.map((b, i) => <BookingCard key={b.id ?? i} booking={b} />)
       )}
-
-      <View style={{ height: 40 }} />
+      <View style={styles.spacer} />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f172a', padding: 24 },
+  container: { flex: 1, backgroundColor: "#0f172a", padding: 24 },
+  center: { justifyContent: "center", alignItems: "center" },
   backButton: { marginTop: 60, marginBottom: 24 },
-  backText: { color: '#38bdf8', fontSize: 16 },
-  destination: { fontSize: 28, fontWeight: 'bold', color: '#fff', marginBottom: 8 },
-  dates: { fontSize: 14, color: '#94a3b8', marginBottom: 12 },
-  badge: { alignSelf: 'flex-start', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 12 },
-  badgeText: { fontSize: 13, fontWeight: 'bold' },
-  budget: { fontSize: 15, color: '#fff', marginBottom: 24 },
-  buttonRow: { flexDirection: 'row', gap: 12, marginBottom: 32 },
-  qrBtn: { flex: 1, backgroundColor: '#38bdf8', borderRadius: 12, padding: 14, alignItems: 'center' },
-  qrBtnText: { color: '#0f172a', fontWeight: 'bold', fontSize: 15 },
-  shareBtn: { flex: 1, backgroundColor: '#1e293b', borderRadius: 12, padding: 14, alignItems: 'center' },
-  shareBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff', marginBottom: 16 },
-  bookingCard: { backgroundColor: '#1e293b', borderRadius: 12, padding: 16, marginBottom: 12 },
-  bookingHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  bookingEmoji: { fontSize: 28 },
-  bookingInfo: { flex: 1 },
-  bookingType: { fontSize: 15, fontWeight: 'bold', color: '#fff' },
-  bookingProvider: { fontSize: 13, color: '#94a3b8' },
-  refContainer: { alignItems: 'flex-end' },
-  refLabel: { fontSize: 10, color: '#94a3b8' },
-  refCode: { fontSize: 13, fontWeight: 'bold', color: '#38bdf8' },
-  bookingDivider: { height: 1, backgroundColor: '#0f172a', marginVertical: 12 },
-  bookingDatetime: { fontSize: 13, color: '#94a3b8', marginBottom: 4 },
-  bookingDetail: { fontSize: 13, color: '#fff' },
-  emptyCard: { backgroundColor: '#1e293b', borderRadius: 12, padding: 20, alignItems: 'center' },
-  emptyText: { color: '#94a3b8', textAlign: 'center', fontSize: 14 },
-  errorText: { color: '#fff', fontSize: 18, textAlign: 'center', marginTop: 100 },
+  backText: { color: "#38bdf8", fontSize: 16 },
+  buttonRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 32,
+    flexWrap: "wrap",
+  },
+  budgetBtn: {
+    flex: 1,
+    minWidth: 100,
+    backgroundColor: theme.colors.card,
+    borderRadius: 12,
+    padding: 14,
+    alignItems: "center",
+  },
+  budgetBtnText: { color: theme.colors.primary, fontWeight: "bold", fontSize: 15 },
+  trackLiveBtn: {
+    flex: 1,
+    minWidth: 120,
+    backgroundColor: theme.colors.success,
+    borderRadius: 12,
+    padding: 14,
+    alignItems: "center",
+  },
+  trackLiveBtnText: { color: "#0f172a", fontWeight: "bold", fontSize: 15 },
+  qrBtn: {
+    flex: 1,
+    minWidth: 120,
+    backgroundColor: "#38bdf8",
+    borderRadius: 12,
+    padding: 14,
+    alignItems: "center",
+  },
+  qrBtnText: { color: "#0f172a", fontWeight: "bold", fontSize: 15 },
+  shareBtn: {
+    flex: 1,
+    backgroundColor: "#1e293b",
+    borderRadius: 12,
+    padding: 14,
+    alignItems: "center",
+  },
+  shareBtnFull: {
+    flex: 1,
+    backgroundColor: "#1e293b",
+    borderRadius: 12,
+    padding: 14,
+    alignItems: "center",
+  },
+  shareBtnText: { color: "#fff", fontWeight: "bold", fontSize: 15 },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#fff",
+    marginBottom: 16,
+  },
+  emptyCard: {
+    backgroundColor: "#1e293b",
+    borderRadius: 12,
+    padding: 20,
+    alignItems: "center",
+  },
+  emptyText: { color: "#94a3b8", textAlign: "center", fontSize: 14 },
+  spacer: { height: 40 },
+  loadingText: { color: "#94a3b8", marginTop: 12 },
+  errorText: { color: "#fca5a5", textAlign: "center", marginBottom: 16 },
+  retryBtn: {
+    backgroundColor: "#38bdf8",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  retryBtnText: { color: "#0f172a", fontWeight: "bold", fontSize: 16 },
+  backLink: { color: "#94a3b8", fontSize: 14 },
 });

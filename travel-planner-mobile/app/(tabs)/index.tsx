@@ -1,15 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   ActivityIndicator, RefreshControl
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api } from '@/api/client';
+import { userApi } from '@/api/user';
+import { tripsApi } from '@/api/trips';
 import { TripCard, type TripCardData } from '@/components/TripCard';
-
-type ProfileResponse = { name?: string; firstName?: string; email?: string; user?: { name?: string; email?: string } };
-type TripsResponse = { data?: TripCardData[] | Record<string, unknown>[]; trips?: TripCardData[] | Record<string, unknown>[] };
+import { OfflineBanner } from '@/components/OfflineBanner';
+import { useConnectivity } from '@/hooks/useConnectivity';
+import { getAccessToken } from '@/utils/auth';
+import { clearTokens } from '@/utils/auth';
+import { cacheTrip, getCachedTrip, getCachedTripIds } from '@/utils/offlineCache';
+import { theme } from '@/constants/theme';
 
 function normalizeTrip(raw: Record<string, unknown>): TripCardData {
   const id = String(raw.id ?? raw.tripId ?? '');
@@ -33,6 +36,7 @@ function normalizeTrip(raw: Record<string, unknown>): TripCardData {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { isOnline } = useConnectivity();
   const [userName, setUserName] = useState<string>('');
   const [trips, setTrips] = useState<TripCardData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +45,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const checkAuthAndFetch = useCallback(async () => {
-    const token = await AsyncStorage.getItem('accessToken');
+    const token = await getAccessToken();
     if (!token) {
       router.replace('/login');
       return;
@@ -50,41 +54,61 @@ export default function HomeScreen() {
     setError(null);
     try {
       const [profileRes, tripsRes] = await Promise.all([
-        api.get<ProfileResponse>('/users/profile'),
-        api.get<TripsResponse>('/trips', { params: { page: 1, limit: 10 } }),
+        userApi.getProfile(),
+        tripsApi.getAll({ page: 1, limit: 10 }),
       ]);
 
-      const profile = profileRes.data?.user ?? profileRes.data;
+      const profile = (
+        (profileRes.data as { user?: { name?: string; firstName?: string; email?: string }; name?: string; firstName?: string; email?: string })?.user
+        ?? profileRes.data
+      ) as { name?: string; firstName?: string; email?: string } | undefined;
       const name =
-        profile?.name ??
-        (profile as ProfileResponse)?.firstName ??
-        ((profile as { email?: string })?.email ? (profile as { email: string }).email.split('@')[0] : '') ||
-        'Traveler';
+        (profile?.name ?? profile?.firstName ?? (profile?.email ? profile.email.split('@')[0] : ''))
+        || 'Traveler';
       setUserName(name);
 
-      const rawList = tripsRes.data?.data ?? tripsRes.data?.trips ?? (Array.isArray(tripsRes.data) ? tripsRes.data : []);
+      const rawList = tripsRes.data;
       const list = Array.isArray(rawList) ? rawList : [];
-      setTrips(list.map((t: Record<string, unknown>) => normalizeTrip(t)));
-    } catch (err: any) {
-      if (err?.response?.status === 401) {
-        await AsyncStorage.multiRemove(['accessToken', 'refreshToken']);
+      const normalized = list.map((t: Record<string, unknown>) => normalizeTrip(t));
+      setTrips(normalized);
+      for (const t of list as Record<string, unknown>[]) {
+        const id = String(t?.id ?? t?.tripId ?? '');
+        if (id) cacheTrip(id, t).catch(() => {});
+      }
+    } catch (err: unknown) {
+      const e = err as { response?: { status?: number; data?: { message?: string } } };
+      if (e?.response?.status === 401) {
+        await clearTokens();
         router.replace('/login');
         return;
       }
-      setError(err?.response?.data?.message || 'Failed to load. Pull to refresh.');
+      if (!isOnline) {
+        const ids = await getCachedTripIds();
+        const cached: TripCardData[] = [];
+        for (const id of ids) {
+          const c = await getCachedTrip(id);
+          if (c?.data) cached.push(normalizeTrip(c.data as Record<string, unknown>));
+        }
+        if (cached.length > 0) {
+          setTrips(cached);
+          setError(null);
+        } else setError('Offline. No cached trips.');
+      } else {
+        setError(e?.response?.data?.message ?? 'Failed to load. Pull to refresh.');
+      }
       setUserName((prev) => prev || 'Traveler');
     } finally {
       setLoading(false);
       setTripsLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [isOnline, router]);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
       (async () => {
-        const token = await AsyncStorage.getItem('accessToken');
+        const token = await getAccessToken();
         if (!token) {
           if (!cancelled) router.replace('/login');
           return;
@@ -105,7 +129,7 @@ export default function HomeScreen() {
   if (loading && !userName) {
     return (
       <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color="#38bdf8" />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
@@ -115,13 +139,23 @@ export default function HomeScreen() {
     <ScrollView
       style={styles.container}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#38bdf8" />
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
       }
     >
+      <OfflineBanner visible={!isOnline} />
       <View style={styles.header}>
         <Text style={styles.welcome}>👋 Welcome back,</Text>
         <Text style={styles.userName}>{userName || 'Traveler'}</Text>
       </View>
+
+      {trips.some((t) => t.status === 'ACTIVE') ? (
+        <TouchableOpacity
+          style={styles.activeTripBanner}
+          onPress={() => router.push({ pathname: '/active-trip', params: { tripId: trips.find((t) => t.status === 'ACTIVE')!.id } })}
+        >
+          <Text style={styles.activeTripBannerText}>📍 View Active Trip</Text>
+        </TouchableOpacity>
+      ) : null}
 
       <TouchableOpacity style={styles.ctaButton} onPress={() => router.push('/new-trip')}>
         <Text style={styles.ctaText}>✈️ Plan a New Trip</Text>
@@ -135,7 +169,7 @@ export default function HomeScreen() {
         </View>
       ) : tripsLoading && trips.length === 0 ? (
         <View style={styles.loadingBox}>
-          <ActivityIndicator color="#38bdf8" />
+          <ActivityIndicator color={theme.colors.primary} />
           <Text style={styles.loadingSubtext}>Loading trips...</Text>
         </View>
       ) : trips.length === 0 ? (
@@ -156,35 +190,43 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f172a', padding: 24 },
+  container: { flex: 1, backgroundColor: theme.colors.background, padding: 24 },
   centered: { justifyContent: 'center', alignItems: 'center' },
-  loadingText: { color: '#94a3b8', marginTop: 12 },
+  loadingText: { color: theme.colors.subtext, marginTop: 12 },
   header: { marginTop: 60, marginBottom: 24 },
-  welcome: { fontSize: 16, color: '#94a3b8' },
-  userName: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
+  welcome: { fontSize: 16, color: theme.colors.subtext },
+  userName: { fontSize: 28, fontWeight: 'bold', color: theme.colors.text },
+  activeTripBanner: {
+    backgroundColor: theme.colors.success,
+    borderRadius: theme.radius.md,
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  activeTripBannerText: { color: theme.colors.background, fontWeight: 'bold', fontSize: 16 },
   ctaButton: {
-    backgroundColor: '#38bdf8',
-    borderRadius: 12,
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.radius.md,
     padding: 16,
     alignItems: 'center',
     marginBottom: 32,
   },
-  ctaText: { color: '#0f172a', fontWeight: 'bold', fontSize: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff', marginBottom: 16 },
+  ctaText: { color: theme.colors.background, fontWeight: 'bold', fontSize: 16 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: theme.colors.text, marginBottom: 16 },
   errorBox: {
     backgroundColor: 'rgba(239, 68, 68, 0.2)',
-    borderRadius: 12,
+    borderRadius: theme.radius.md,
     padding: 16,
     marginBottom: 16,
   },
-  errorText: { color: '#fca5a5', textAlign: 'center' },
+  errorText: { color: theme.colors.error, textAlign: 'center' },
   loadingBox: { alignItems: 'center', paddingVertical: 32 },
-  loadingSubtext: { color: '#94a3b8', marginTop: 8 },
+  loadingSubtext: { color: theme.colors.subtext, marginTop: 8 },
   emptyBox: {
-    backgroundColor: '#1e293b',
-    borderRadius: 12,
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radius.md,
     padding: 24,
     alignItems: 'center',
   },
-  emptyText: { color: '#94a3b8', fontSize: 16, textAlign: 'center' },
+  emptyText: { color: theme.colors.subtext, fontSize: 16, textAlign: 'center' },
 });

@@ -7,6 +7,15 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { tripsApi } from '@/api/trips';
 import { itineraryApi } from '@/api/itinerary';
 import { formatTripDateRange } from '@/utils/dateFormat';
+import { scheduleTripReminder } from '@/utils/notifications';
+import { saveNotification } from '@/utils/notificationStore';
+import type { AppNotification } from '@/types/notification';
+import { OfflineBanner } from '@/components/OfflineBanner';
+import { useConnectivity } from '@/hooks/useConnectivity';
+import { cacheItinerary, getCachedItinerary } from '@/utils/offlineCache';
+import { showToast } from '@/utils/toastStore';
+import { getErrorMessage } from '@/utils/errorHandler';
+import { SUCCESS_MESSAGES } from '@/constants/errors';
 
 // UI display types
 interface ActivityItem {
@@ -163,6 +172,7 @@ function buildBudgetFromDays(days: DayItem[]): BudgetItem[] {
 
 export default function ItineraryReviewScreen() {
   const router = useRouter();
+  const { isOnline } = useConnectivity();
   const { tripId } = useLocalSearchParams<{ tripId?: string }>();
   const [trip, setTrip] = useState<TripSummary | null>(null);
   const [itinerary, setItinerary] = useState<DayItem[]>([]);
@@ -244,18 +254,62 @@ export default function ItineraryReviewScreen() {
         } else {
           setBudgetBreakdown(buildBudgetFromDays(days));
         }
+        if (tripId) {
+          const toCache = {
+            trip: tripData,
+            days: rawDays,
+            budgetBreakdown: (itineraryData as Record<string, unknown>)?.budgetBreakdown ?? (itineraryData as Record<string, unknown>)?.budget_breakdown,
+            status,
+          };
+          cacheItinerary(tripId, toCache).catch(() => {});
+        }
       }
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } }; message?: string };
-      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to load itinerary.';
-      setError(msg);
-      setItinerary([]);
-      setBudgetBreakdown([]);
-      setIsGenerating(false);
+      if (!isOnline && tripId) {
+        const cached = await getCachedItinerary(tripId);
+        const data = cached?.data as { trip?: Record<string, unknown>; days?: Record<string, unknown>[]; budgetBreakdown?: unknown[]; status?: string } | undefined;
+        if (data?.trip) {
+          setTrip({
+            destination: String(data.trip.destination ?? ''),
+            startDate: String(data.trip.startDate ?? data.trip.start_date ?? ''),
+            endDate: String(data.trip.endDate ?? data.trip.end_date ?? ''),
+            totalBudget: parseNum(data.trip.totalBudget ?? data.trip.total_budget),
+            currency: String(data.trip.currency ?? 'USD'),
+            status: String(data.trip.status ?? 'PENDING').toUpperCase(),
+          });
+          const rawDays = Array.isArray(data.days) ? data.days : [];
+          if (rawDays.length > 0) {
+            setItinerary(rawDays.map((d, i) => normalizeDay(d as Record<string, unknown>, i)));
+            const breakdown = data.budgetBreakdown;
+            if (Array.isArray(breakdown) && breakdown.length > 0) {
+              const map: Record<string, { label: string; color: string; emoji: string }> = {
+                flights: BUDGET_COLORS.flights,
+                accommodation: BUDGET_COLORS.accommodation,
+                activities: BUDGET_COLORS.activities,
+                transport: BUDGET_COLORS.transport,
+              };
+              setBudgetBreakdown(breakdown.map((b: unknown) => {
+                const x = b as Record<string, unknown>;
+                const key = String(x.category ?? x.type ?? '').toLowerCase();
+                const def = map[key] ?? { label: String(x.label ?? key), color: '#94a3b8', emoji: '📦' };
+                return { label: def.label, amount: parseNum(x.amount ?? x.value), color: def.color, emoji: def.emoji } as BudgetItem;
+              }));
+            } else setBudgetBreakdown(buildBudgetFromDays(rawDays.map((d, i) => normalizeDay(d as Record<string, unknown>, i))));
+          }
+          setError(null);
+          setIsGenerating(false);
+        } else setError('Offline. No cached itinerary.');
+      } else {
+        setError(getErrorMessage(err));
+        setItinerary([]);
+        setBudgetBreakdown([]);
+        setIsGenerating(false);
+      }
     } finally {
       setLoading(false);
     }
-  }, [tripId, router]);
+  }, [tripId, router, isOnline]);
 
   useEffect(() => {
     loadData();
@@ -276,10 +330,27 @@ export default function ItineraryReviewScreen() {
     setConfirmLoading(true);
     try {
       await tripsApi.confirm(tripId);
+      if (trip?.destination != null && trip?.startDate != null) {
+        scheduleTripReminder({
+          tripId: String(tripId),
+          destination: trip.destination,
+          startDate: trip.startDate,
+        }).catch(() => {});
+      }
+      const tripConfirmedNotification: AppNotification = {
+        id: `trip_confirmed_${tripId}_${Date.now()}`,
+        type: 'trip_confirmed',
+        title: 'Trip confirmed',
+        body: trip?.destination ? `Your trip to ${trip.destination} is confirmed. Your QR Pass is ready.` : 'Your trip is confirmed. Your QR Pass is ready.',
+        tripId: String(tripId),
+        isRead: false,
+        createdAt: new Date().toISOString(),
+      };
+      saveNotification(tripConfirmedNotification).catch(() => {});
+      showToast('success', SUCCESS_MESSAGES.TRIP_CONFIRMED);
       router.replace({ pathname: '/qr-pass', params: { tripId } });
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string } }; message?: string };
-      setConfirmError(err?.response?.data?.message ?? err?.message ?? 'Failed to confirm trip.');
+      setConfirmError(getErrorMessage(e));
     } finally {
       setConfirmLoading(false);
     }
@@ -337,8 +408,11 @@ export default function ItineraryReviewScreen() {
     return null;
   }
 
+  const offlineDisabled = !isOnline;
+
   return (
     <ScrollView style={styles.container}>
+      <OfflineBanner visible={!isOnline} />
       <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
         <Text style={styles.backText}>← Back</Text>
       </TouchableOpacity>
@@ -379,9 +453,29 @@ export default function ItineraryReviewScreen() {
         </View>
       </View>
 
+      <View style={styles.navRow}>
+        <TouchableOpacity
+          style={styles.budgetNavBtn}
+          onPress={() =>
+            router.push({ pathname: '/budget-breakdown', params: { tripId } })
+          }
+        >
+          <Text style={styles.budgetNavBtnText}>💰 Budget Breakdown</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.editNavBtn, offlineDisabled && styles.btnDisabled]}
+          onPress={() =>
+            !offlineDisabled && router.push({ pathname: '/edit-itinerary', params: { tripId } } as unknown as Parameters<typeof router.push>[0])
+          }
+          disabled={offlineDisabled}
+        >
+          <Text style={styles.editNavBtnText}>✏️ Edit</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Budget Breakdown */}
       <View style={styles.budgetCard}>
-        <Text style={styles.sectionTitle}>💰 Budget Breakdown</Text>
+        <Text style={styles.sectionTitle}>💰 Budget by category</Text>
         <View style={styles.budgetBar}>
           {budgetBreakdown.map((item) => (
             <View
@@ -484,9 +578,9 @@ export default function ItineraryReviewScreen() {
       ) : null}
 
       <TouchableOpacity
-        style={styles.confirmBtn}
+        style={[styles.confirmBtn, (confirmLoading || offlineDisabled) && styles.btnDisabled]}
         onPress={handleConfirm}
-        disabled={confirmLoading}
+        disabled={confirmLoading || offlineDisabled}
       >
         {confirmLoading ? (
           <>
@@ -512,6 +606,23 @@ const styles = StyleSheet.create({
   centered: { justifyContent: 'center', alignItems: 'center' },
   loadingText: { color: '#94a3b8', marginTop: 12 },
   generatingSubtext: { color: '#64748b', marginTop: 8, fontSize: 14 },
+  navRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
+  budgetNavBtn: {
+    flex: 1,
+    backgroundColor: '#1e293b',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  budgetNavBtnText: { color: '#38bdf8', fontWeight: 'bold', fontSize: 16 },
+  editNavBtn: {
+    flex: 1,
+    backgroundColor: '#1e293b',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  editNavBtnText: { color: '#38bdf8', fontWeight: 'bold', fontSize: 16 },
   retryBtn: {
     marginTop: 16,
     paddingVertical: 12,
@@ -584,6 +695,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
   },
+  btnDisabled: { opacity: 0.6 },
   confirmText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   rejectBtn: { backgroundColor: '#1e293b', borderRadius: 12, padding: 16, alignItems: 'center' },
   rejectText: { color: '#38bdf8', fontWeight: 'bold', fontSize: 16 },
