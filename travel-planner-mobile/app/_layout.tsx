@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
+import { setUnauthorizedHandler } from '@/api/client';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { registerForPushNotifications } from '@/utils/notifications';
 
@@ -13,6 +14,11 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const router = useRouter();
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => router.replace('/login'));
+  }, [router]);
 
   useEffect(() => {
     registerForPushNotifications().catch(() => {});

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api } from '@/api/client';
+import { authApi } from '@/api/auth';
+import { saveTokens } from '@/utils/auth';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -15,13 +15,13 @@ export default function LoginScreen() {
     setError('');
     setLoading(true);
     try {
-      const response = await api.post('/auth/login', { email, password });
+      const response = await authApi.login({ email, password });
       const data = response.data;
-
-      await AsyncStorage.multiSet([
-        ['accessToken', data.accessToken],
-        ['refreshToken', data.refreshToken],
-      ]);
+      const accessToken = data?.accessToken ?? (data as { accessToken?: string })?.accessToken;
+      const refreshToken = data?.refreshToken ?? (data as { refreshToken?: string })?.refreshToken;
+      if (accessToken && refreshToken) {
+        await saveTokens(accessToken, refreshToken);
+      }
 
       router.replace('/(tabs)');
     } catch (err: any) {

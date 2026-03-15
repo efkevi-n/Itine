@@ -1,15 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   ActivityIndicator, RefreshControl
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api } from '@/api/client';
+import { userApi } from '@/api/user';
+import { tripsApi } from '@/api/trips';
 import { TripCard, type TripCardData } from '@/components/TripCard';
-
-type ProfileResponse = { name?: string; firstName?: string; email?: string; user?: { name?: string; email?: string } };
-type TripsResponse = { data?: TripCardData[] | Record<string, unknown>[]; trips?: TripCardData[] | Record<string, unknown>[] };
+import { getAccessToken } from '@/utils/auth';
+import { clearTokens } from '@/utils/auth';
 
 function normalizeTrip(raw: Record<string, unknown>): TripCardData {
   const id = String(raw.id ?? raw.tripId ?? '');
@@ -41,7 +40,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const checkAuthAndFetch = useCallback(async () => {
-    const token = await AsyncStorage.getItem('accessToken');
+    const token = await getAccessToken();
     if (!token) {
       router.replace('/login');
       return;
@@ -50,28 +49,30 @@ export default function HomeScreen() {
     setError(null);
     try {
       const [profileRes, tripsRes] = await Promise.all([
-        api.get<ProfileResponse>('/users/profile'),
-        api.get<TripsResponse>('/trips', { params: { page: 1, limit: 10 } }),
+        userApi.getProfile(),
+        tripsApi.getAll({ page: 1, limit: 10 }),
       ]);
 
-      const profile = profileRes.data?.user ?? profileRes.data;
+      const profile = (profileRes.data as { user?: { name?: string; email?: string }; name?: string; firstName?: string; email?: string })?.user
+        ?? profileRes.data as { name?: string; firstName?: string; email?: string };
       const name =
-        profile?.name ??
-        (profile as ProfileResponse)?.firstName ??
-        ((profile as { email?: string })?.email ? (profile as { email: string }).email.split('@')[0] : '') ||
-        'Traveler';
+        profile?.name
+        ?? profile?.firstName
+        ?? (profile?.email ? profile.email.split('@')[0] : '')
+        || 'Traveler';
       setUserName(name);
 
-      const rawList = tripsRes.data?.data ?? tripsRes.data?.trips ?? (Array.isArray(tripsRes.data) ? tripsRes.data : []);
+      const rawList = tripsRes.data;
       const list = Array.isArray(rawList) ? rawList : [];
       setTrips(list.map((t: Record<string, unknown>) => normalizeTrip(t)));
-    } catch (err: any) {
-      if (err?.response?.status === 401) {
-        await AsyncStorage.multiRemove(['accessToken', 'refreshToken']);
+    } catch (err: unknown) {
+      const e = err as { response?: { status?: number; data?: { message?: string } } };
+      if (e?.response?.status === 401) {
+        await clearTokens();
         router.replace('/login');
         return;
       }
-      setError(err?.response?.data?.message || 'Failed to load. Pull to refresh.');
+      setError(e?.response?.data?.message ?? 'Failed to load. Pull to refresh.');
       setUserName((prev) => prev || 'Traveler');
     } finally {
       setLoading(false);
@@ -84,7 +85,7 @@ export default function HomeScreen() {
     useCallback(() => {
       let cancelled = false;
       (async () => {
-        const token = await AsyncStorage.getItem('accessToken');
+        const token = await getAccessToken();
         if (!token) {
           if (!cancelled) router.replace('/login');
           return;

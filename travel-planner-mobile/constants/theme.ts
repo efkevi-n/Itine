@@ -27,6 +27,31 @@ export const Colors = {
   },
 };
 
+/** Global theme for colors, fonts, radius (single source for app UI tokens) */
+export const theme = {
+  colors: {
+    primary: '#2563eb',
+    background: '#0f172a',
+    card: '#1e293b',
+    text: '#ffffff',
+    subtext: '#94a3b8',
+    success: '#22c55e',
+    error: '#ef4444',
+    warning: '#f59e0b',
+  },
+  fonts: {
+    regular: 14,
+    medium: 16,
+    large: 20,
+    title: 28,
+  },
+  radius: {
+    sm: 8,
+    md: 12,
+    lg: 16,
+  },
+};
+
 export const Fonts = Platform.select({
   ios: {
     /** iOS `UIFontDescriptorSystemDesignDefault` */

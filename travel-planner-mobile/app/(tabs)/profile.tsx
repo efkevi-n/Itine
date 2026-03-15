@@ -4,10 +4,10 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { userApi } from '@/api/user';
 import { authApi } from '@/api/auth';
 import { cancelAllReminders } from '@/utils/notifications';
+import { clearTokens } from '@/utils/auth';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { ProfileForm } from '@/components/ProfileForm';
 import type { ProfileView } from '@/types/user';
@@ -104,7 +104,7 @@ export default function ProfileScreen() {
     } catch {
       // continue to clear local state
     }
-    await AsyncStorage.multiRemove(['accessToken', 'refreshToken']);
+    await clearTokens();
     router.replace('/login');
   }, [router]);
 
