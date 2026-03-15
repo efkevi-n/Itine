@@ -10,24 +10,27 @@ interface ProfileAvatarProps {
 export function ProfileAvatar({ photoUrl, onPress, uploadLoading }: ProfileAvatarProps) {
   return (
     <TouchableOpacity style={styles.container} onPress={onPress} disabled={uploadLoading}>
-      {photoUrl ? (
-        <Image source={{ uri: photoUrl }} style={styles.avatar} />
-      ) : (
-        <View style={styles.placeholder}>
-          <Text style={styles.placeholderText}>📷</Text>
-        </View>
-      )}
-      {uploadLoading && (
-        <View style={styles.overlay}>
-          <ActivityIndicator size="large" color="#fff" />
-        </View>
-      )}
+      <View style={styles.wrapper}>
+        {photoUrl ? (
+          <Image source={{ uri: photoUrl }} style={styles.avatar} />
+        ) : (
+          <View style={styles.placeholder}>
+            <Text style={styles.placeholderText}>📷</Text>
+          </View>
+        )}
+        {uploadLoading && (
+          <View style={styles.overlay}>
+            <ActivityIndicator size="large" color="#fff" />
+          </View>
+        )}
+      </View>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   container: { alignSelf: 'center', marginBottom: 24 },
+  wrapper: { position: 'relative', width: 120, height: 120 },
   avatar: { width: 120, height: 120, borderRadius: 60 },
   placeholder: {
     width: 120,
