@@ -387,9 +387,21 @@ export default function ItineraryReviewScreen() {
         </View>
       </View>
 
+      <TouchableOpacity
+        style={styles.budgetNavBtn}
+        onPress={() =>
+          router.push({
+            pathname: '/budget-breakdown',
+            params: { tripId },
+          } as unknown as Parameters<typeof router.push>[0])
+        }
+      >
+        <Text style={styles.budgetNavBtnText}>💰 Budget Breakdown</Text>
+      </TouchableOpacity>
+
       {/* Budget Breakdown */}
       <View style={styles.budgetCard}>
-        <Text style={styles.sectionTitle}>💰 Budget Breakdown</Text>
+        <Text style={styles.sectionTitle}>💰 Budget by category</Text>
         <View style={styles.budgetBar}>
           {budgetBreakdown.map((item) => (
             <View
@@ -520,6 +532,14 @@ const styles = StyleSheet.create({
   centered: { justifyContent: 'center', alignItems: 'center' },
   loadingText: { color: '#94a3b8', marginTop: 12 },
   generatingSubtext: { color: '#64748b', marginTop: 8, fontSize: 14 },
+  budgetNavBtn: {
+    backgroundColor: '#1e293b',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  budgetNavBtnText: { color: '#38bdf8', fontWeight: 'bold', fontSize: 16 },
   retryBtn: {
     marginTop: 16,
     paddingVertical: 12,

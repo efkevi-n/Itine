@@ -124,6 +124,17 @@ export default function TripDetailScreen() {
       </TouchableOpacity>
       <TripHeader trip={trip} />
       <View style={styles.buttonRow}>
+        <TouchableOpacity
+          style={styles.budgetBtn}
+          onPress={() =>
+            router.push({
+              pathname: "/budget-breakdown",
+              params: { tripId: resolvedId },
+            } as unknown as Parameters<typeof router.push>[0])
+          }
+        >
+          <Text style={styles.budgetBtnText}>💰 Budget</Text>
+        </TouchableOpacity>
         {isActive && (
           <TouchableOpacity
             style={styles.trackLiveBtn}
@@ -131,7 +142,7 @@ export default function TripDetailScreen() {
               router.push({
                 pathname: "/active-trip",
                 params: { tripId: resolvedId },
-              })
+              } as unknown as Parameters<typeof router.push>[0])
             }
           >
             <Text style={styles.trackLiveBtnText}>📍 Track Live</Text>
@@ -183,6 +194,15 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     flexWrap: "wrap",
   },
+  budgetBtn: {
+    flex: 1,
+    minWidth: 100,
+    backgroundColor: theme.colors.card,
+    borderRadius: 12,
+    padding: 14,
+    alignItems: "center",
+  },
+  budgetBtnText: { color: theme.colors.primary, fontWeight: "bold", fontSize: 15 },
   trackLiveBtn: {
     flex: 1,
     minWidth: 120,
