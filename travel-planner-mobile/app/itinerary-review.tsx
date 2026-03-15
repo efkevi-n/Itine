@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet,
   ScrollView
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { scheduleAllTripNotifications } from '../utils/notifications';
 
 const mockItinerary = [
@@ -55,6 +55,7 @@ const totalBudget = budgetBreakdown.reduce((sum, item) => sum + item.amount, 0);
 
 export default function ItineraryReviewScreen() {
   const router = useRouter();
+  const { tripId } = useLocalSearchParams<{ tripId?: string }>();
   const [expandedDay, setExpandedDay] = useState<number | null>(1);
 
   const handleConfirm = async () => {
