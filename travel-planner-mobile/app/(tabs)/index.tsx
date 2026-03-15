@@ -124,6 +124,15 @@ export default function HomeScreen() {
         <Text style={styles.userName}>{userName || 'Traveler'}</Text>
       </View>
 
+      {trips.some((t) => t.status === 'ACTIVE') ? (
+        <TouchableOpacity
+          style={styles.activeTripBanner}
+          onPress={() => router.push({ pathname: '/active-trip', params: { tripId: trips.find((t) => t.status === 'ACTIVE')!.id } })}
+        >
+          <Text style={styles.activeTripBannerText}>📍 View Active Trip</Text>
+        </TouchableOpacity>
+      ) : null}
+
       <TouchableOpacity style={styles.ctaButton} onPress={() => router.push('/new-trip')}>
         <Text style={styles.ctaText}>✈️ Plan a New Trip</Text>
       </TouchableOpacity>
@@ -163,6 +172,14 @@ const styles = StyleSheet.create({
   header: { marginTop: 60, marginBottom: 24 },
   welcome: { fontSize: 16, color: '#94a3b8' },
   userName: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
+  activeTripBanner: {
+    backgroundColor: '#22c55e',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  activeTripBannerText: { color: '#0f172a', fontWeight: 'bold', fontSize: 16 },
   ctaButton: {
     backgroundColor: '#38bdf8',
     borderRadius: 12,
