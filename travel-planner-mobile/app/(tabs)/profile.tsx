@@ -7,6 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { userApi } from '@/api/user';
 import { authApi } from '@/api/auth';
+import { cancelAllReminders } from '@/utils/notifications';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { ProfileForm } from '@/components/ProfileForm';
 import type { ProfileView } from '@/types/user';
@@ -97,6 +98,7 @@ export default function ProfileScreen() {
   }, [name, phone]);
 
   const handleLogout = useCallback(async () => {
+    await cancelAllReminders();
     try {
       await authApi.logout();
     } catch {

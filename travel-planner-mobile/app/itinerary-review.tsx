@@ -7,6 +7,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { tripsApi } from '@/api/trips';
 import { itineraryApi } from '@/api/itinerary';
 import { formatTripDateRange } from '@/utils/dateFormat';
+import { scheduleTripReminder } from '@/utils/notifications';
 
 // UI display types
 interface ActivityItem {
@@ -276,6 +277,13 @@ export default function ItineraryReviewScreen() {
     setConfirmLoading(true);
     try {
       await tripsApi.confirm(tripId);
+      if (trip?.destination != null && trip?.startDate != null) {
+        scheduleTripReminder({
+          tripId: String(tripId),
+          destination: trip.destination,
+          startDate: trip.startDate,
+        }).catch(() => {});
+      }
       router.replace({ pathname: '/qr-pass', params: { tripId } });
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } }; message?: string };
