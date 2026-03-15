@@ -11,6 +11,8 @@ import { trippassApi } from '@/api/trippass';
 import { userApi } from '@/api/user';
 import { tripsApi } from '@/api/trips';
 import { formatTripDateRange } from '@/utils/dateFormat';
+import { useConnectivity } from '@/hooks/useConnectivity';
+import { OFFLINE_MESSAGES } from '@/constants/offline';
 
 const QR_REFRESH_INTERVAL = 30;
 const PASS_CACHE_PREFIX = 'trippass_';
@@ -40,6 +42,7 @@ function getCacheKey(tripId: string): string {
 
 export default function QRPassScreen() {
   const router = useRouter();
+  const { isOnline } = useConnectivity();
   const { tripId } = useLocalSearchParams<{ tripId?: string }>();
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -169,7 +172,7 @@ export default function QRPassScreen() {
   }, [currentTripId, router, loadData]);
 
   const refreshOtp = useCallback(async () => {
-    if (!jti) return;
+    if (!jti || !isOnline) return;
     try {
       const newOtp = await fetchOtp(jti);
       if (newOtp && currentTripId) {
@@ -182,10 +185,10 @@ export default function QRPassScreen() {
       // keep current OTP
     }
     setCountdown(QR_REFRESH_INTERVAL);
-  }, [jti, currentTripId, fetchOtp, loadPassFromStorage, savePassToStorage]);
+  }, [jti, currentTripId, isOnline, fetchOtp, loadPassFromStorage, savePassToStorage]);
 
   useEffect(() => {
-    if (!authenticated || !jti) return;
+    if (!authenticated || !jti || !isOnline) return;
     countdownRef.current = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
@@ -198,7 +201,7 @@ export default function QRPassScreen() {
     return () => {
       if (countdownRef.current) clearInterval(countdownRef.current);
     };
-  }, [authenticated, jti, refreshOtp]);
+  }, [authenticated, jti, isOnline, refreshOtp]);
 
   const authenticate = async () => {
     setAuthError(null);
@@ -314,9 +317,11 @@ export default function QRPassScreen() {
       <Text style={styles.title}>🎫 Your QR Pass</Text>
       <Text style={styles.subtitle}>Show this at check-in points</Text>
 
-      {offlineMode ? (
+      {(offlineMode || !isOnline) ? (
         <View style={styles.offlineBanner}>
-          <Text style={styles.offlineBannerText}>Offline mode — using cached pass</Text>
+          <Text style={styles.offlineBannerText}>
+            {!isOnline ? OFFLINE_MESSAGES.offlineOtpWarning : OFFLINE_MESSAGES.offlineCachedPass}
+          </Text>
         </View>
       ) : null}
 

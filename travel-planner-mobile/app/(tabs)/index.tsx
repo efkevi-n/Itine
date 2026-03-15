@@ -7,8 +7,12 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { userApi } from '@/api/user';
 import { tripsApi } from '@/api/trips';
 import { TripCard, type TripCardData } from '@/components/TripCard';
+import { OfflineBanner } from '@/components/OfflineBanner';
+import { useConnectivity } from '@/hooks/useConnectivity';
 import { getAccessToken } from '@/utils/auth';
 import { clearTokens } from '@/utils/auth';
+import { cacheTrip, getCachedTrip, getCachedTripIds } from '@/utils/offlineCache';
+import { theme } from '@/constants/theme';
 
 function normalizeTrip(raw: Record<string, unknown>): TripCardData {
   const id = String(raw.id ?? raw.tripId ?? '');
@@ -32,6 +36,7 @@ function normalizeTrip(raw: Record<string, unknown>): TripCardData {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { isOnline } = useConnectivity();
   const [userName, setUserName] = useState<string>('');
   const [trips, setTrips] = useState<TripCardData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,7 +69,12 @@ export default function HomeScreen() {
 
       const rawList = tripsRes.data;
       const list = Array.isArray(rawList) ? rawList : [];
-      setTrips(list.map((t: Record<string, unknown>) => normalizeTrip(t)));
+      const normalized = list.map((t: Record<string, unknown>) => normalizeTrip(t));
+      setTrips(normalized);
+      for (const t of list as Record<string, unknown>[]) {
+        const id = String(t?.id ?? t?.tripId ?? '');
+        if (id) cacheTrip(id, t).catch(() => {});
+      }
     } catch (err: unknown) {
       const e = err as { response?: { status?: number; data?: { message?: string } } };
       if (e?.response?.status === 401) {
@@ -72,14 +82,27 @@ export default function HomeScreen() {
         router.replace('/login');
         return;
       }
-      setError(e?.response?.data?.message ?? 'Failed to load. Pull to refresh.');
+      if (!isOnline) {
+        const ids = await getCachedTripIds();
+        const cached: TripCardData[] = [];
+        for (const id of ids) {
+          const c = await getCachedTrip(id);
+          if (c?.data) cached.push(normalizeTrip(c.data as Record<string, unknown>));
+        }
+        if (cached.length > 0) {
+          setTrips(cached);
+          setError(null);
+        } else setError('Offline. No cached trips.');
+      } else {
+        setError(e?.response?.data?.message ?? 'Failed to load. Pull to refresh.');
+      }
       setUserName((prev) => prev || 'Traveler');
     } finally {
       setLoading(false);
       setTripsLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [isOnline, router]);
 
   useFocusEffect(
     useCallback(() => {
@@ -106,7 +129,7 @@ export default function HomeScreen() {
   if (loading && !userName) {
     return (
       <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color="#38bdf8" />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
@@ -116,9 +139,10 @@ export default function HomeScreen() {
     <ScrollView
       style={styles.container}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#38bdf8" />
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
       }
     >
+      <OfflineBanner visible={!isOnline} />
       <View style={styles.header}>
         <Text style={styles.welcome}>👋 Welcome back,</Text>
         <Text style={styles.userName}>{userName || 'Traveler'}</Text>
@@ -145,7 +169,7 @@ export default function HomeScreen() {
         </View>
       ) : tripsLoading && trips.length === 0 ? (
         <View style={styles.loadingBox}>
-          <ActivityIndicator color="#38bdf8" />
+          <ActivityIndicator color={theme.colors.primary} />
           <Text style={styles.loadingSubtext}>Loading trips...</Text>
         </View>
       ) : trips.length === 0 ? (
@@ -166,43 +190,43 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f172a', padding: 24 },
+  container: { flex: 1, backgroundColor: theme.colors.background, padding: 24 },
   centered: { justifyContent: 'center', alignItems: 'center' },
-  loadingText: { color: '#94a3b8', marginTop: 12 },
+  loadingText: { color: theme.colors.subtext, marginTop: 12 },
   header: { marginTop: 60, marginBottom: 24 },
-  welcome: { fontSize: 16, color: '#94a3b8' },
-  userName: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
+  welcome: { fontSize: 16, color: theme.colors.subtext },
+  userName: { fontSize: 28, fontWeight: 'bold', color: theme.colors.text },
   activeTripBanner: {
-    backgroundColor: '#22c55e',
-    borderRadius: 12,
+    backgroundColor: theme.colors.success,
+    borderRadius: theme.radius.md,
     padding: 16,
     alignItems: 'center',
     marginBottom: 16,
   },
-  activeTripBannerText: { color: '#0f172a', fontWeight: 'bold', fontSize: 16 },
+  activeTripBannerText: { color: theme.colors.background, fontWeight: 'bold', fontSize: 16 },
   ctaButton: {
-    backgroundColor: '#38bdf8',
-    borderRadius: 12,
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.radius.md,
     padding: 16,
     alignItems: 'center',
     marginBottom: 32,
   },
-  ctaText: { color: '#0f172a', fontWeight: 'bold', fontSize: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff', marginBottom: 16 },
+  ctaText: { color: theme.colors.background, fontWeight: 'bold', fontSize: 16 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: theme.colors.text, marginBottom: 16 },
   errorBox: {
     backgroundColor: 'rgba(239, 68, 68, 0.2)',
-    borderRadius: 12,
+    borderRadius: theme.radius.md,
     padding: 16,
     marginBottom: 16,
   },
-  errorText: { color: '#fca5a5', textAlign: 'center' },
+  errorText: { color: theme.colors.error, textAlign: 'center' },
   loadingBox: { alignItems: 'center', paddingVertical: 32 },
-  loadingSubtext: { color: '#94a3b8', marginTop: 8 },
+  loadingSubtext: { color: theme.colors.subtext, marginTop: 8 },
   emptyBox: {
-    backgroundColor: '#1e293b',
-    borderRadius: 12,
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radius.md,
     padding: 24,
     alignItems: 'center',
   },
-  emptyText: { color: '#94a3b8', fontSize: 16, textAlign: 'center' },
+  emptyText: { color: theme.colors.subtext, fontSize: 16, textAlign: 'center' },
 });

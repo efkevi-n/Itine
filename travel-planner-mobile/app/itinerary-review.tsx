@@ -10,6 +10,9 @@ import { formatTripDateRange } from '@/utils/dateFormat';
 import { scheduleTripReminder } from '@/utils/notifications';
 import { saveNotification } from '@/utils/notificationStore';
 import type { AppNotification } from '@/types/notification';
+import { OfflineBanner } from '@/components/OfflineBanner';
+import { useConnectivity } from '@/hooks/useConnectivity';
+import { cacheItinerary, getCachedItinerary } from '@/utils/offlineCache';
 
 // UI display types
 interface ActivityItem {
@@ -166,6 +169,7 @@ function buildBudgetFromDays(days: DayItem[]): BudgetItem[] {
 
 export default function ItineraryReviewScreen() {
   const router = useRouter();
+  const { isOnline } = useConnectivity();
   const { tripId } = useLocalSearchParams<{ tripId?: string }>();
   const [trip, setTrip] = useState<TripSummary | null>(null);
   const [itinerary, setItinerary] = useState<DayItem[]>([]);
@@ -247,18 +251,63 @@ export default function ItineraryReviewScreen() {
         } else {
           setBudgetBreakdown(buildBudgetFromDays(days));
         }
+        if (tripId) {
+          const toCache = {
+            trip: tripData,
+            days: rawDays,
+            budgetBreakdown: (itineraryData as Record<string, unknown>)?.budgetBreakdown ?? (itineraryData as Record<string, unknown>)?.budget_breakdown,
+            status,
+          };
+          cacheItinerary(tripId, toCache).catch(() => {});
+        }
       }
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } }; message?: string };
-      const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to load itinerary.';
-      setError(msg);
-      setItinerary([]);
-      setBudgetBreakdown([]);
-      setIsGenerating(false);
+      if (!isOnline && tripId) {
+        const cached = await getCachedItinerary(tripId);
+        const data = cached?.data as { trip?: Record<string, unknown>; days?: Record<string, unknown>[]; budgetBreakdown?: unknown[]; status?: string } | undefined;
+        if (data?.trip) {
+          setTrip({
+            destination: String(data.trip.destination ?? ''),
+            startDate: String(data.trip.startDate ?? data.trip.start_date ?? ''),
+            endDate: String(data.trip.endDate ?? data.trip.end_date ?? ''),
+            totalBudget: parseNum(data.trip.totalBudget ?? data.trip.total_budget),
+            currency: String(data.trip.currency ?? 'USD'),
+            status: String(data.trip.status ?? 'PENDING').toUpperCase(),
+          });
+          const rawDays = Array.isArray(data.days) ? data.days : [];
+          if (rawDays.length > 0) {
+            setItinerary(rawDays.map((d, i) => normalizeDay(d as Record<string, unknown>, i)));
+            const breakdown = data.budgetBreakdown;
+            if (Array.isArray(breakdown) && breakdown.length > 0) {
+              const map: Record<string, { label: string; color: string; emoji: string }> = {
+                flights: BUDGET_COLORS.flights,
+                accommodation: BUDGET_COLORS.accommodation,
+                activities: BUDGET_COLORS.activities,
+                transport: BUDGET_COLORS.transport,
+              };
+              setBudgetBreakdown(breakdown.map((b: unknown) => {
+                const x = b as Record<string, unknown>;
+                const key = String(x.category ?? x.type ?? '').toLowerCase();
+                const def = map[key] ?? { label: String(x.label ?? key), color: '#94a3b8', emoji: '📦' };
+                return { label: def.label, amount: parseNum(x.amount ?? x.value), color: def.color, emoji: def.emoji } as BudgetItem;
+              }));
+            } else setBudgetBreakdown(buildBudgetFromDays(rawDays.map((d, i) => normalizeDay(d as Record<string, unknown>, i))));
+          }
+          setError(null);
+          setIsGenerating(false);
+        } else setError('Offline. No cached itinerary.');
+      } else {
+        const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to load itinerary.';
+        setError(msg);
+        setItinerary([]);
+        setBudgetBreakdown([]);
+        setIsGenerating(false);
+      }
     } finally {
       setLoading(false);
     }
-  }, [tripId, router]);
+  }, [tripId, router, isOnline]);
 
   useEffect(() => {
     loadData();
@@ -357,8 +406,11 @@ export default function ItineraryReviewScreen() {
     return null;
   }
 
+  const offlineDisabled = !isOnline;
+
   return (
     <ScrollView style={styles.container}>
+      <OfflineBanner visible={!isOnline} />
       <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
         <Text style={styles.backText}>← Back</Text>
       </TouchableOpacity>
@@ -409,10 +461,11 @@ export default function ItineraryReviewScreen() {
           <Text style={styles.budgetNavBtnText}>💰 Budget Breakdown</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.editNavBtn}
+          style={[styles.editNavBtn, offlineDisabled && styles.btnDisabled]}
           onPress={() =>
-            router.push({ pathname: '/edit-itinerary', params: { tripId } } as unknown as Parameters<typeof router.push>[0])
+            !offlineDisabled && router.push({ pathname: '/edit-itinerary', params: { tripId } } as unknown as Parameters<typeof router.push>[0])
           }
+          disabled={offlineDisabled}
         >
           <Text style={styles.editNavBtnText}>✏️ Edit</Text>
         </TouchableOpacity>
@@ -523,9 +576,9 @@ export default function ItineraryReviewScreen() {
       ) : null}
 
       <TouchableOpacity
-        style={styles.confirmBtn}
+        style={[styles.confirmBtn, (confirmLoading || offlineDisabled) && styles.btnDisabled]}
         onPress={handleConfirm}
-        disabled={confirmLoading}
+        disabled={confirmLoading || offlineDisabled}
       >
         {confirmLoading ? (
           <>
@@ -640,6 +693,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
   },
+  btnDisabled: { opacity: 0.6 },
   confirmText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   rejectBtn: { backgroundColor: '#1e293b', borderRadius: 12, padding: 16, alignItems: 'center' },
   rejectText: { color: '#38bdf8', fontWeight: 'bold', fontSize: 16 },

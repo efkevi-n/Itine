@@ -6,6 +6,8 @@ import {
 import { useRouter } from 'expo-router';
 import { api } from '@/api/client';
 import { DestinationSearch } from '@/components/DestinationSearch';
+import { useConnectivity } from '@/hooks/useConnectivity';
+import { OFFLINE_MESSAGES } from '@/constants/offline';
 
 const currencies = ['USD', 'EUR', 'GBP', 'TRY'];
 
@@ -56,6 +58,7 @@ function validate(
 
 export default function NewTripScreen() {
   const router = useRouter();
+  const { isOnline } = useConnectivity();
   const [destination, setDestination] = useState('');
   const [origin, setOrigin] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -75,6 +78,10 @@ export default function NewTripScreen() {
 
   const handleGenerate = async () => {
     setError('');
+    if (!isOnline) {
+      setError(OFFLINE_MESSAGES.cannotCreateTrip);
+      return;
+    }
     const validationError = validate(destination, origin, startDate, endDate, budget);
     if (validationError) {
       setError(validationError);
@@ -150,7 +157,7 @@ export default function NewTripScreen() {
     }
   };
 
-  const disabled = loading;
+  const disabled = loading || !isOnline;
 
   return (
     <>
@@ -246,6 +253,9 @@ export default function NewTripScreen() {
           ))}
         </View>
 
+        {!isOnline ? (
+          <Text style={styles.error}>{OFFLINE_MESSAGES.cannotCreateTrip}</Text>
+        ) : null}
         <TouchableOpacity
           style={[styles.generateBtn, disabled && styles.generateBtnDisabled]}
           onPress={handleGenerate}

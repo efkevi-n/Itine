@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
@@ -7,10 +8,17 @@ import 'react-native-reanimated';
 
 import { setUnauthorizedHandler } from '@/api/client';
 import { NOTIFICATION_ROUTES } from '@/constants/notifications';
+import { OFFLINE_MESSAGES } from '@/constants/offline';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useConnectivity } from '@/hooks/useConnectivity';
 import type { AppNotification, NotificationType } from '@/types/notification';
 import { saveNotification } from '@/utils/notificationStore';
 import { registerForPushNotifications } from '@/utils/notifications';
+import { retryQueuedRequests } from '@/utils/requestQueue';
+import { clearExpiredCache } from '@/utils/offlineCache';
+import { theme } from '@/constants/theme';
+
+const SYNC_TOAST_DURATION_MS = 3000;
 
 const VALID_TYPES: NotificationType[] = [
   'trip_confirmed', 'trip_reminder', 'checkin_reminder',
@@ -33,6 +41,9 @@ export const unstable_settings = {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
+  const { status } = useConnectivity();
+  const prevStatusRef = useRef<typeof status>(status);
+  const [showSyncToast, setShowSyncToast] = useState(false);
 
   useEffect(() => {
     setUnauthorizedHandler(() => router.replace('/login'));
@@ -41,6 +52,18 @@ export default function RootLayout() {
   useEffect(() => {
     registerForPushNotifications().catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const wasOffline = prevStatusRef.current === 'offline';
+    if (wasOffline && status === 'online') {
+      setShowSyncToast(true);
+      clearExpiredCache().catch(() => {});
+      retryQueuedRequests().finally(() => {
+        setTimeout(() => setShowSyncToast(false), SYNC_TOAST_DURATION_MS);
+      });
+    }
+    prevStatusRef.current = status;
+  }, [status]);
 
   useEffect(() => {
     const subReceived = Notifications.addNotificationReceivedListener((notification) => {
@@ -91,6 +114,11 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      {showSyncToast ? (
+        <View style={styles.syncToast}>
+          <Text style={styles.syncToastText}>{OFFLINE_MESSAGES.backOnlineSyncing}</Text>
+        </View>
+      ) : null}
       <Stack>
         <Stack.Screen name="onboarding" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
@@ -102,3 +130,22 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  syncToast: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: theme.colors.success,
+    paddingVertical: theme.radius.sm,
+    paddingHorizontal: theme.radius.md,
+    zIndex: 9999,
+    alignItems: 'center',
+  },
+  syncToastText: {
+    fontSize: theme.fonts.regular,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+});

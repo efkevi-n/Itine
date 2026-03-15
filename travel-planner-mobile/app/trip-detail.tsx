@@ -13,6 +13,7 @@ import { tripsApi } from "@/api/trips";
 import { bookingsApi } from "@/api/bookings";
 import { TripHeader } from "@/components/TripHeader";
 import { BookingCard } from "@/components/BookingCard";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import type { TripDetailView, BookingDetailView } from "@/types/trip";
 import { isQrPassAvailable } from "@/utils/tripStatus";
 import { theme } from "@/constants/theme";
@@ -21,9 +22,12 @@ import {
   mapBookingToDetailView,
 } from "@/utils/tripDetailMappers";
 import { formatTripDateRange } from "@/utils/dateFormat";
+import { useConnectivity } from "@/hooks/useConnectivity";
+import { cacheTrip, getCachedTrip } from "@/utils/offlineCache";
 
 export default function TripDetailScreen() {
   const router = useRouter();
+  const { isOnline } = useConnectivity();
   const { id, tripId } = useLocalSearchParams<{
     id?: string;
     tripId?: string;
@@ -56,12 +60,22 @@ export default function TripDetailScreen() {
           mapBookingToDetailView(b as Record<string, unknown>),
         ),
       );
+      await cacheTrip(resolvedId, { trip: tripData, bookings: rawList });
     } catch {
-      setError("Failed to load trip. Please try again.");
+      if (!isOnline) {
+        const cached = await getCachedTrip(resolvedId);
+        const data = cached?.data as { trip?: Record<string, unknown>; bookings?: unknown[] } | undefined;
+        if (data?.trip) {
+          setTrip(mapTripToDetailView(data.trip));
+          const rawList = Array.isArray(data.bookings) ? data.bookings : [];
+          setBookings(rawList.map((b) => mapBookingToDetailView(b as Record<string, unknown>)));
+          setError(null);
+        } else setError("Offline. No cached trip.");
+      } else setError("Failed to load trip. Please try again.");
     } finally {
       setLoading(false);
     }
-  }, [resolvedId]);
+  }, [resolvedId, isOnline]);
 
   useEffect(() => {
     if (!resolvedId) return;
@@ -119,6 +133,7 @@ export default function TripDetailScreen() {
 
   return (
     <ScrollView style={styles.container}>
+      <OfflineBanner visible={!isOnline} />
       <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
         <Text style={styles.backText}>← Back</Text>
       </TouchableOpacity>
