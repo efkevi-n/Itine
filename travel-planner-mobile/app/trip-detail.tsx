@@ -78,8 +78,9 @@ const statusColors: Record<string, string> = {
 
 export default function TripDetailScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams();
-  const trip = mockTrips[id as string];
+  const { id, tripId } = useLocalSearchParams<{ id?: string; tripId?: string }>();
+  const resolvedId = tripId ?? id;
+  const trip = resolvedId ? mockTrips[resolvedId] : undefined;
 
   if (!trip) {
     return (

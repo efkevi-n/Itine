@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
+import { api } from '@/api/client';
 
 export default function RegisterScreen() {
   const [name, setName] = useState('');
@@ -21,21 +22,19 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
-      const response = await fetch('https://your-api.com/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password, phone }),
+      const response = await api.post('/auth/register', {
+        name,
+        email,
+        password,
+        phonenumber: phone || undefined,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.message || 'Registration failed. Please try again.');
-      } else {
+      if (response.status >= 200 && response.status < 300) {
         router.replace('/login');
       }
-    } catch (err) {
-      setError('Network error. Please check your connection.');
+    } catch (err: any) {
+      const message = err?.response?.data?.message || 'Registration failed. Please try again.';
+      setError(message);
     } finally {
       setLoading(false);
     }
