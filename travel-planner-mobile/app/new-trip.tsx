@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, ActivityIndicator, Modal
+  StyleSheet, ScrollView
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { api } from '@/api/client';
 import { DestinationSearch } from '@/components/DestinationSearch';
+import { FullScreenLoader } from '@/components/FullScreenLoader';
 import { useConnectivity } from '@/hooks/useConnectivity';
 import { OFFLINE_MESSAGES } from '@/constants/offline';
+import { LOADER_MESSAGES_ITINERARY } from '@/constants/loader';
+import { getErrorMessage } from '@/utils/errorHandler';
+import { theme } from '@/constants/theme';
 
 const currencies = ['USD', 'EUR', 'GBP', 'TRY'];
 
@@ -146,12 +150,8 @@ export default function NewTripScreen() {
       }
 
       setError('Generation is taking longer than expected. Please check "Your Trips" later.');
-    } catch (err: any) {
-      const message =
-        err?.response?.data?.message ??
-        err?.message ??
-        'Something went wrong. Please try again.';
-      setError(message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -210,7 +210,7 @@ export default function NewTripScreen() {
         <Text style={styles.label}>Total Budget *</Text>
         <View style={styles.budgetRow}>
           <TextInput
-            style={[styles.input, { flex: 1, marginRight: 8 }]}
+            style={[styles.input, styles.inputBudget]}
             placeholder="e.g. 2000"
             placeholderTextColor="#aaa"
             value={budget}
@@ -264,20 +264,10 @@ export default function NewTripScreen() {
           <Text style={styles.generateText}>🤖 Generate My Trip</Text>
         </TouchableOpacity>
 
-        <View style={{ height: 40 }} />
+        <View style={styles.spacer} />
       </ScrollView>
 
-      <Modal visible={loading} transparent animationType="fade">
-        <View style={styles.overlay}>
-          <View style={styles.overlayCard}>
-            <ActivityIndicator size="large" color="#38bdf8" />
-            <Text style={styles.overlayTitle}>AI is planning your trip...</Text>
-            <Text style={styles.overlaySubtitle}>
-              This may take up to 15 seconds
-            </Text>
-          </View>
-        </View>
-      </Modal>
+      <FullScreenLoader visible={loading} messages={LOADER_MESSAGES_ITINERARY} />
     </>
   );
 }
@@ -306,6 +296,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   budgetRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  inputBudget: { flex: 1, marginRight: 8 },
   currencyRow: { flexDirection: 'row', gap: 6 },
   currencyBtn: {
     backgroundColor: '#1e293b',
@@ -333,25 +324,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   generateBtnDisabled: { opacity: 0.7 },
-  generateText: { color: '#0f172a', fontWeight: 'bold', fontSize: 16 },
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  overlayCard: {
-    backgroundColor: '#1e293b',
-    borderRadius: 16,
-    padding: 32,
-    alignItems: 'center',
-    minWidth: 280,
-  },
-  overlayTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginTop: 16,
-  },
-  overlaySubtitle: { color: '#94a3b8', fontSize: 14, marginTop: 8 },
+  generateText: { color: theme.colors.background, fontWeight: 'bold', fontSize: 16 },
+  spacer: { height: 40 },
 });

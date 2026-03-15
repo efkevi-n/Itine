@@ -13,6 +13,9 @@ import type { AppNotification } from '@/types/notification';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { useConnectivity } from '@/hooks/useConnectivity';
 import { cacheItinerary, getCachedItinerary } from '@/utils/offlineCache';
+import { showToast } from '@/utils/toastStore';
+import { getErrorMessage } from '@/utils/errorHandler';
+import { SUCCESS_MESSAGES } from '@/constants/errors';
 
 // UI display types
 interface ActivityItem {
@@ -298,8 +301,7 @@ export default function ItineraryReviewScreen() {
           setIsGenerating(false);
         } else setError('Offline. No cached itinerary.');
       } else {
-        const msg = err?.response?.data?.message ?? err?.message ?? 'Failed to load itinerary.';
-        setError(msg);
+        setError(getErrorMessage(err));
         setItinerary([]);
         setBudgetBreakdown([]);
         setIsGenerating(false);
@@ -345,10 +347,10 @@ export default function ItineraryReviewScreen() {
         createdAt: new Date().toISOString(),
       };
       saveNotification(tripConfirmedNotification).catch(() => {});
+      showToast('success', SUCCESS_MESSAGES.TRIP_CONFIRMED);
       router.replace({ pathname: '/qr-pass', params: { tripId } });
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string } }; message?: string };
-      setConfirmError(err?.response?.data?.message ?? err?.message ?? 'Failed to confirm trip.');
+      setConfirmError(getErrorMessage(e));
     } finally {
       setConfirmLoading(false);
     }

@@ -13,6 +13,10 @@ import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { ProfileForm } from '@/components/ProfileForm';
 import type { ProfileView } from '@/types/user';
 import { mapProfileToView } from '@/utils/profileMappers';
+import { showToast } from '@/utils/toastStore';
+import { getErrorMessage } from '@/utils/errorHandler';
+import { SUCCESS_MESSAGES } from '@/constants/errors';
+import { theme } from '@/constants/theme';
 
 const APP_VERSION = 'AI Travel Planner v1.0.0';
 
@@ -25,7 +29,6 @@ export default function ProfileScreen() {
   const [error, setError] = useState<string | null>(null);
   const [saveLoading, setSaveLoading] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const loadProfile = useCallback(async () => {
@@ -38,8 +41,8 @@ export default function ProfileScreen() {
       setProfile(view);
       setName(view.name);
       setPhone(view.phone);
-    } catch {
-      setError('Failed to load profile. Please try again.');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -75,8 +78,8 @@ export default function ProfileScreen() {
       const res = await userApi.getProfile();
       const view = mapProfileToView((res.data ?? {}) as Record<string, unknown>);
       setProfile(view);
-    } catch {
-      setSaveError('Upload failed. Please try again.');
+    } catch (e: unknown) {
+      setSaveError(getErrorMessage(e));
     } finally {
       setUploadLoading(false);
     }
@@ -84,15 +87,14 @@ export default function ProfileScreen() {
 
   const handleSave = useCallback(async () => {
     setSaveError(null);
-    setSuccessMessage(null);
     setSaveLoading(true);
     try {
       await userApi.updateProfile({ name, phone });
-      setSuccessMessage('Profile updated!');
+      showToast('success', SUCCESS_MESSAGES.PROFILE_UPDATED);
       const res = await userApi.getProfile();
       setProfile(mapProfileToView((res.data ?? {}) as Record<string, unknown>));
-    } catch {
-      setSaveError('Failed to save. Please try again.');
+    } catch (e: unknown) {
+      setSaveError(getErrorMessage(e));
     } finally {
       setSaveLoading(false);
     }
@@ -107,13 +109,14 @@ export default function ProfileScreen() {
       // continue to clear local state
     }
     await clearTokens();
+    showToast('success', SUCCESS_MESSAGES.LOGGED_OUT);
     router.replace('/login');
   }, [router]);
 
   if (loading && !profile) {
     return (
       <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color="#38bdf8" />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
         <Text style={styles.loadingText}>Loading profile...</Text>
       </View>
     );
@@ -147,10 +150,9 @@ export default function ProfileScreen() {
         onChangeName={setName}
         onChangePhone={setPhone}
       />
-      {successMessage ? <Text style={styles.successText}>{successMessage}</Text> : null}
       {saveError ? <Text style={styles.saveErrorText}>{saveError}</Text> : null}
       <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saveLoading}>
-        {saveLoading ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.saveBtnText}>Save changes</Text>}
+        {saveLoading ? <ActivityIndicator color={theme.colors.background} /> : <Text style={styles.saveBtnText}>Save changes</Text>}
       </TouchableOpacity>
       <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
         <Text style={styles.logoutBtnText}>Log out</Text>
@@ -162,25 +164,24 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f172a', padding: 24 },
+  container: { flex: 1, backgroundColor: theme.colors.background, padding: 24 },
   centered: { justifyContent: 'center', alignItems: 'center' },
-  title: { fontSize: 28, fontWeight: 'bold', color: '#fff', marginTop: 60, marginBottom: 8 },
-  loadingText: { color: '#94a3b8', marginTop: 12 },
-  errorText: { color: '#fca5a5', textAlign: 'center', marginBottom: 16 },
-  retryBtn: { backgroundColor: '#38bdf8', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12 },
-  retryBtnText: { color: '#0f172a', fontWeight: 'bold', fontSize: 16 },
-  successText: { color: '#22c55e', marginBottom: 8, textAlign: 'center' },
-  saveErrorText: { color: '#fca5a5', marginBottom: 8, textAlign: 'center' },
+  title: { fontSize: 28, fontWeight: 'bold', color: theme.colors.text, marginTop: 60, marginBottom: 8 },
+  loadingText: { color: theme.colors.subtext, marginTop: 12 },
+  errorText: { color: theme.colors.error, textAlign: 'center', marginBottom: 16 },
+  retryBtn: { backgroundColor: theme.colors.primary, paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12 },
+  retryBtnText: { color: theme.colors.background, fontWeight: 'bold', fontSize: 16 },
+  saveErrorText: { color: theme.colors.error, marginBottom: 8, textAlign: 'center' },
   saveBtn: {
-    backgroundColor: '#38bdf8',
+    backgroundColor: theme.colors.primary,
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
     marginBottom: 12,
   },
-  saveBtnText: { color: '#0f172a', fontWeight: 'bold', fontSize: 16 },
-  logoutBtn: { backgroundColor: '#1e293b', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 24 },
+  saveBtnText: { color: theme.colors.background, fontWeight: 'bold', fontSize: 16 },
+  logoutBtn: { backgroundColor: theme.colors.card, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 24 },
   logoutBtnText: { color: '#f87171', fontWeight: '600', fontSize: 16 },
-  version: { color: '#64748b', fontSize: 12, textAlign: 'center' },
+  version: { color: theme.colors.subtext, fontSize: 12, textAlign: 'center' },
   spacer: { height: 40 },
 });

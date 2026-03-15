@@ -17,6 +17,8 @@ import { registerForPushNotifications } from '@/utils/notifications';
 import { retryQueuedRequests } from '@/utils/requestQueue';
 import { clearExpiredCache } from '@/utils/offlineCache';
 import { theme } from '@/constants/theme';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ToastContainer } from '@/components/ToastContainer';
 
 const SYNC_TOAST_DURATION_MS = 3000;
 
@@ -113,21 +115,24 @@ export default function RootLayout() {
   }, [router]);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      {showSyncToast ? (
-        <View style={styles.syncToast}>
-          <Text style={styles.syncToastText}>{OFFLINE_MESSAGES.backOnlineSyncing}</Text>
-        </View>
-      ) : null}
-      <Stack>
-        <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-        <Stack.Screen name="login" options={{ headerShown: false }} />
-        <Stack.Screen name="register" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <ToastContainer />
+        {showSyncToast ? (
+          <View style={styles.syncToast}>
+            <Text style={styles.syncToastText}>{OFFLINE_MESSAGES.backOnlineSyncing}</Text>
+          </View>
+        ) : null}
+        <Stack>
+          <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+          <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen name="register" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        </Stack>
+        <StatusBar style="auto" />
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 
