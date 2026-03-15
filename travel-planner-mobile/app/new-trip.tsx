@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { api } from '@/api/client';
+import { DestinationSearch } from '@/components/DestinationSearch';
 
 const currencies = ['USD', 'EUR', 'GBP', 'TRY'];
 
@@ -164,22 +165,18 @@ export default function NewTripScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <Text style={styles.label}>Destination City *</Text>
-        <TextInput
-          style={styles.input}
+        <DestinationSearch
           placeholder="e.g. Paris, Tokyo, New York"
-          placeholderTextColor="#aaa"
           value={destination}
-          onChangeText={setDestination}
+          onSelect={(city, country) => setDestination(`${city}, ${country}`)}
           editable={!disabled}
         />
 
         <Text style={styles.label}>Origin City *</Text>
-        <TextInput
-          style={styles.input}
+        <DestinationSearch
           placeholder="e.g. London, Istanbul, Berlin"
-          placeholderTextColor="#aaa"
           value={origin}
-          onChangeText={setOrigin}
+          onSelect={(city, country) => setOrigin(`${city}, ${country}`)}
           editable={!disabled}
         />
 

@@ -390,10 +390,7 @@ export default function ItineraryReviewScreen() {
       <TouchableOpacity
         style={styles.budgetNavBtn}
         onPress={() =>
-          router.push({
-            pathname: '/budget-breakdown',
-            params: { tripId },
-          } as unknown as Parameters<typeof router.push>[0])
+          router.push({ pathname: '/budget-breakdown', params: { tripId } })
         }
       >
         <Text style={styles.budgetNavBtnText}>💰 Budget Breakdown</Text>

@@ -130,7 +130,7 @@ export default function TripDetailScreen() {
             router.push({
               pathname: "/budget-breakdown",
               params: { tripId: resolvedId },
-            } as unknown as Parameters<typeof router.push>[0])
+            })
           }
         >
           <Text style={styles.budgetBtnText}>💰 Budget</Text>
@@ -142,7 +142,7 @@ export default function TripDetailScreen() {
               router.push({
                 pathname: "/active-trip",
                 params: { tripId: resolvedId },
-              } as unknown as Parameters<typeof router.push>[0])
+              })
             }
           >
             <Text style={styles.trackLiveBtnText}>📍 Track Live</Text>

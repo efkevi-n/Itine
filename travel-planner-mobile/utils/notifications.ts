@@ -9,6 +9,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -62,7 +64,10 @@ async function scheduleReminder24hBefore(
       sound: true,
       data: { [TRIP_DATA_KEY]: tripId, type: 'trip_reminder' },
     },
-    trigger: { date: triggerDate },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: triggerDate,
+    },
   });
   return id;
 }
@@ -84,7 +89,10 @@ async function scheduleReminderMorningOf(
       sound: true,
       data: { [TRIP_DATA_KEY]: tripId, type: 'qr_reminder' },
     },
-    trigger: { date: triggerDate },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: triggerDate,
+    },
   });
   return id;
 }

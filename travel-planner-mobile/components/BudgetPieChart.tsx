@@ -38,7 +38,6 @@ export function BudgetPieChart({ categories, totalAllocated }: BudgetPieChartPro
           labelKey="label"
           valueKey="value"
           colorKey="color"
-          style={styles.chart}
         >
           <Pie.Chart />
         </PolarChart>
@@ -67,10 +66,6 @@ const styles = StyleSheet.create({
     height: CHART_SIZE,
     width: CHART_SIZE,
     alignSelf: 'center',
-  },
-  chart: {
-    height: CHART_SIZE,
-    width: CHART_SIZE,
   },
   legend: {
     marginTop: theme.radius.md,

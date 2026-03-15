@@ -53,12 +53,12 @@ export default function HomeScreen() {
         tripsApi.getAll({ page: 1, limit: 10 }),
       ]);
 
-      const profile = (profileRes.data as { user?: { name?: string; email?: string }; name?: string; firstName?: string; email?: string })?.user
-        ?? profileRes.data as { name?: string; firstName?: string; email?: string };
+      const profile = (
+        (profileRes.data as { user?: { name?: string; firstName?: string; email?: string }; name?: string; firstName?: string; email?: string })?.user
+        ?? profileRes.data
+      ) as { name?: string; firstName?: string; email?: string } | undefined;
       const name =
-        profile?.name
-        ?? profile?.firstName
-        ?? (profile?.email ? profile.email.split('@')[0] : '')
+        (profile?.name ?? profile?.firstName ?? (profile?.email ? profile.email.split('@')[0] : ''))
         || 'Traveler';
       setUserName(name);
 
