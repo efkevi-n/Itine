@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api } from '@/api/client';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -13,21 +15,18 @@ export default function LoginScreen() {
     setError('');
     setLoading(true);
     try {
-      const response = await fetch('https://your-api.com/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+      const response = await api.post('/auth/login', { email, password });
+      const data = response.data;
 
-      const data = await response.json();
+      await AsyncStorage.multiSet([
+        ['accessToken', data.accessToken],
+        ['refreshToken', data.refreshToken],
+      ]);
 
-      if (!response.ok) {
-        setError(data.message || 'Login failed. Please try again.');
-      } else {
-        router.replace('/(tabs)');
-      }
-    } catch (err) {
-      setError('Network error. Please check your connection.');
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      const message = err?.response?.data?.message || 'Login failed. Please try again.';
+      setError(message);
     } finally {
       setLoading(false);
     }
