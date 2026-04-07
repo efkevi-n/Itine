@@ -27,6 +27,7 @@ export default function NewTripScreen() {
   const [selectedPrefs, setSelectedPrefs] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const togglePref = (id: string) => {
     setSelectedPrefs(prev =>
@@ -54,132 +55,376 @@ export default function NewTripScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
       <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
         <Text style={styles.backText}>← Back</Text>
       </TouchableOpacity>
 
-      <Text style={styles.title}>✈️ Plan a New Trip</Text>
-      <Text style={styles.subtitle}>Tell us where you want to go</Text>
+      <View style={styles.header}>
+        <Text style={styles.headerEyebrow}>NEW TRIP</Text>
+        <Text style={styles.title}>Plan Your Journey</Text>
+        <Text style={styles.subtitle}>Fill in the details below</Text>
+        <View style={styles.headerDivider} />
+      </View>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
 
-      <Text style={styles.label}>Destination City *</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. Paris, Tokyo, New York"
-        placeholderTextColor="#aaa"
-        value={destination}
-        onChangeText={setDestination}
-      />
+      <View style={styles.section}>
+        <Text style={styles.label}>Destination City *</Text>
+        <View
+          style={[
+            styles.inputWrap,
+            focusedField === 'destination' && styles.inputWrapFocused,
+          ]}
+        >
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. Paris, Tokyo, New York"
+            placeholderTextColor="#4b5563"
+            value={destination}
+            onChangeText={setDestination}
+            onFocus={() => setFocusedField('destination')}
+            onBlur={() => setFocusedField(null)}
+          />
+        </View>
+      </View>
 
-      <Text style={styles.label}>Origin City *</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. London, Istanbul, Berlin"
-        placeholderTextColor="#aaa"
-        value={origin}
-        onChangeText={setOrigin}
-      />
+      <View style={styles.section}>
+        <Text style={styles.label}>Origin City *</Text>
+        <View
+          style={[
+            styles.inputWrap,
+            focusedField === 'origin' && styles.inputWrapFocused,
+          ]}
+        >
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. London, Istanbul, Berlin"
+            placeholderTextColor="#4b5563"
+            value={origin}
+            onChangeText={setOrigin}
+            onFocus={() => setFocusedField('origin')}
+            onBlur={() => setFocusedField(null)}
+          />
+        </View>
+      </View>
 
-      <Text style={styles.label}>Start Date *</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. 2025-06-10"
-        placeholderTextColor="#aaa"
-        value={startDate}
-        onChangeText={setStartDate}
-      />
+      <View style={styles.section}>
+        <Text style={styles.label}>Start Date *</Text>
+        <View
+          style={[
+            styles.inputWrap,
+            focusedField === 'startDate' && styles.inputWrapFocused,
+          ]}
+        >
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. 2026-06-10"
+            placeholderTextColor="#4b5563"
+            value={startDate}
+            onChangeText={setStartDate}
+            onFocus={() => setFocusedField('startDate')}
+            onBlur={() => setFocusedField(null)}
+          />
+        </View>
+      </View>
 
-      <Text style={styles.label}>End Date *</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. 2025-06-20"
-        placeholderTextColor="#aaa"
-        value={endDate}
-        onChangeText={setEndDate}
-      />
+      <View style={styles.section}>
+        <Text style={styles.label}>End Date *</Text>
+        <View
+          style={[
+            styles.inputWrap,
+            focusedField === 'endDate' && styles.inputWrapFocused,
+          ]}
+        >
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. 2026-06-20"
+            placeholderTextColor="#4b5563"
+            value={endDate}
+            onChangeText={setEndDate}
+            onFocus={() => setFocusedField('endDate')}
+            onBlur={() => setFocusedField(null)}
+          />
+        </View>
+      </View>
 
-      <Text style={styles.label}>Total Budget *</Text>
-      <View style={styles.budgetRow}>
-        <TextInput
-          style={[styles.input, { flex: 1, marginRight: 8 }]}
-          placeholder="e.g. 2000"
-          placeholderTextColor="#aaa"
-          value={budget}
-          onChangeText={setBudget}
-          keyboardType="numeric"
-        />
-        <View style={styles.currencyRow}>
-          {currencies.map(c => (
-            <TouchableOpacity
-              key={c}
-              style={[styles.currencyBtn, currency === c && styles.currencyBtnActive]}
-              onPress={() => setCurrency(c)}
+      <View style={styles.section}>
+        <Text style={styles.label}>Total Budget *</Text>
+        <View style={styles.budgetRow}>
+          <View style={styles.budgetInputCol}>
+            <View
+              style={[
+                styles.inputWrap,
+                focusedField === 'budget' && styles.inputWrapFocused,
+              ]}
             >
-              <Text style={[styles.currencyText, currency === c && styles.currencyTextActive]}>{c}</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. 2000"
+                placeholderTextColor="#4b5563"
+                value={budget}
+                onChangeText={setBudget}
+                keyboardType="numeric"
+                onFocus={() => setFocusedField('budget')}
+                onBlur={() => setFocusedField(null)}
+              />
+            </View>
+          </View>
+          <View style={styles.currencyCol}>
+            {currencies.map(c => (
+              <TouchableOpacity
+                key={c}
+                style={[
+                  styles.currencyPill,
+                  currency === c && styles.currencyPillActive,
+                ]}
+                onPress={() => setCurrency(c)}
+              >
+                <Text
+                  style={[
+                    styles.currencyPillText,
+                    currency === c && styles.currencyPillTextActive,
+                  ]}
+                >
+                  {c}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.label}>PREFERENCES</Text>
+        <View style={styles.prefsGrid}>
+          {preferences.map(pref => (
+            <TouchableOpacity
+              key={pref.id}
+              style={[
+                styles.prefBtn,
+                selectedPrefs.includes(pref.id) && styles.prefBtnActive,
+              ]}
+              onPress={() => togglePref(pref.id)}
+            >
+              <Text
+                style={[
+                  styles.prefText,
+                  selectedPrefs.includes(pref.id) && styles.prefTextActive,
+                ]}
+              >
+                {pref.label}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
       </View>
 
-      <Text style={styles.label}>Preferences (optional)</Text>
-      <View style={styles.prefsGrid}>
-        {preferences.map(pref => (
-          <TouchableOpacity
-            key={pref.id}
-            style={[styles.prefBtn, selectedPrefs.includes(pref.id) && styles.prefBtnActive]}
-            onPress={() => togglePref(pref.id)}
-          >
-            <Text style={[styles.prefText, selectedPrefs.includes(pref.id) && styles.prefTextActive]}>
-              {pref.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <TouchableOpacity style={styles.generateBtn} onPress={handleGenerate} disabled={loading}>
+      <TouchableOpacity style={styles.button} onPress={handleGenerate} disabled={loading}>
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator color="#0f172a" style={{ marginRight: 8 }} />
-            <Text style={styles.generateText}>AI is generating your trip...</Text>
+            <ActivityIndicator color="#ffffff" style={styles.loadingSpinner} />
+            <Text style={styles.buttonTextLoading}>Generating your trip...</Text>
           </View>
         ) : (
-          <Text style={styles.generateText}>🤖 Generate My Trip</Text>
+          <Text style={styles.buttonText}>Generate My Trip</Text>
         )}
       </TouchableOpacity>
 
-      {loading && (
-        <Text style={styles.loadingHint}>This may take 10-15 seconds. Please wait!</Text>
-      )}
-
-      <View style={{ height: 40 }} />
+      {loading ? (
+        <Text style={styles.loadingHint}>
+          This may take 10-15 seconds. Please wait!
+        </Text>
+      ) : null}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f172a', padding: 24 },
-  backButton: { marginTop: 60, marginBottom: 16 },
-  backText: { color: '#38bdf8', fontSize: 16 },
-  title: { fontSize: 28, fontWeight: 'bold', color: '#fff', marginBottom: 8 },
-  subtitle: { fontSize: 14, color: '#94a3b8', marginBottom: 24 },
-  error: { backgroundColor: '#7f1d1d', color: '#fca5a5', padding: 12, borderRadius: 8, marginBottom: 16, textAlign: 'center' },
-  label: { fontSize: 13, color: '#94a3b8', marginBottom: 6, marginTop: 8 },
-  input: { backgroundColor: '#1e293b', color: '#fff', borderRadius: 10, padding: 14, fontSize: 15, marginBottom: 8 },
-  budgetRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  currencyRow: { flexDirection: 'row', gap: 6 },
-  currencyBtn: { backgroundColor: '#1e293b', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
-  currencyBtnActive: { backgroundColor: '#38bdf8' },
-  currencyText: { color: '#94a3b8', fontSize: 13, fontWeight: 'bold' },
-  currencyTextActive: { color: '#0f172a' },
-  prefsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 },
-  prefBtn: { backgroundColor: '#1e293b', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
-  prefBtnActive: { backgroundColor: '#38bdf8' },
-  prefText: { color: '#94a3b8', fontSize: 13 },
-  prefTextActive: { color: '#0f172a', fontWeight: 'bold' },
-  generateBtn: { backgroundColor: '#38bdf8', borderRadius: 12, padding: 16, alignItems: 'center' },
-  generateText: { color: '#0f172a', fontWeight: 'bold', fontSize: 16 },
-  loadingContainer: { flexDirection: 'row', alignItems: 'center' },
-  loadingHint: { color: '#94a3b8', textAlign: 'center', marginTop: 12, fontSize: 13 },
+  scroll: {
+    flex: 1,
+    backgroundColor: '#0d0d14',
+  },
+  content: {
+    paddingHorizontal: 24,
+    paddingBottom: 60,
+    paddingTop: 48,
+    gap: 20,
+  },
+  backButton: {
+    alignSelf: 'flex-start',
+    marginBottom: 0,
+  },
+  backText: {
+    color: '#6366f1',
+    fontSize: 16,
+    backgroundColor: 'transparent',
+  },
+  header: {
+    marginBottom: 0,
+  },
+  headerEyebrow: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 1.5,
+    color: '#4b5563',
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: '#ffffff',
+    marginBottom: 6,
+  },
+  subtitle: {
+    fontSize: 13,
+    color: '#9ca3af',
+    marginBottom: 16,
+  },
+  headerDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    width: '100%',
+  },
+  errorBox: {
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.2)',
+    borderRadius: 10,
+    padding: 12,
+  },
+  errorText: {
+    color: '#f87171',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  section: {
+    gap: 8,
+  },
+  label: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 1.5,
+    color: '#4b5563',
+    textTransform: 'uppercase',
+  },
+  inputWrap: {
+    backgroundColor: '#13131f',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 0,
+    minHeight: 48,
+    justifyContent: 'center',
+  },
+  inputWrapFocused: {
+    borderColor: 'rgba(99,102,241,0.5)',
+  },
+  input: {
+    backgroundColor: 'transparent',
+    color: '#ffffff',
+    fontSize: 15,
+    paddingVertical: 14,
+    paddingHorizontal: 0,
+    margin: 0,
+  },
+  budgetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  budgetInputCol: {
+    flex: 0.6,
+    minWidth: 0,
+  },
+  currencyCol: {
+    flex: 0.4,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 6,
+  },
+  currencyPill: {
+    backgroundColor: '#13131f',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  currencyPillActive: {
+    backgroundColor: 'rgba(99,102,241,0.15)',
+    borderColor: '#6366f1',
+  },
+  currencyPillText: {
+    color: '#9ca3af',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  currencyPillTextActive: {
+    color: '#6366f1',
+  },
+  prefsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  prefBtn: {
+    backgroundColor: '#13131f',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  prefBtnActive: {
+    backgroundColor: 'rgba(99,102,241,0.15)',
+    borderColor: '#6366f1',
+  },
+  prefText: {
+    color: '#9ca3af',
+    fontSize: 14,
+  },
+  prefTextActive: {
+    color: '#6366f1',
+    fontWeight: '600',
+  },
+  button: {
+    backgroundColor: '#6366f1',
+    borderRadius: 12,
+    height: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonText: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  buttonTextLoading: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingSpinner: {
+    marginRight: 10,
+  },
+  loadingHint: {
+    fontSize: 12,
+    color: '#4b5563',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
 });
