@@ -100,92 +100,297 @@ export default function TripDetailScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
         <Text style={styles.backText}>← Back</Text>
       </TouchableOpacity>
 
-      {/* Header */}
-      <Text style={styles.destination}>{trip.destination}</Text>
-      <Text style={styles.dates}>📅 {trip.dates}</Text>
+      <View style={styles.headerSection}>
+        <Text style={styles.headerLabel}>TRIP DETAILS</Text>
+        <Text style={styles.destination}>{trip.destination}</Text>
+        <View style={styles.datePill}>
+          <Text style={styles.dateText}>{trip.dates}</Text>
+        </View>
 
-      <View style={[styles.badge, { backgroundColor: statusColors[trip.status] + '33' }]}>
-        <Text style={[styles.badgeText, { color: statusColors[trip.status] }]}>{trip.status}</Text>
+        <View
+          style={[
+            styles.statusBadge,
+            {
+              backgroundColor: `${statusColors[trip.status]}1A`,
+              borderColor: `${statusColors[trip.status]}66`,
+            },
+          ]}
+        >
+          <Text style={[styles.statusText, { color: statusColors[trip.status] }]}>{trip.status}</Text>
+        </View>
+
+        <View style={styles.budgetRow}>
+          <Text style={styles.budgetLabel}>TOTAL BUDGET</Text>
+          <Text style={styles.budgetValue}>{trip.budget}</Text>
+        </View>
       </View>
 
-      <Text style={styles.budget}>💰 Total Budget: {trip.budget}</Text>
+      <View style={styles.headerDivider} />
 
-      {/* Action Buttons */}
       <View style={styles.buttonRow}>
         <TouchableOpacity style={styles.qrBtn} onPress={() => router.push('/qr-pass')}>
-          <Text style={styles.qrBtnText}>🎫 Show QR Pass</Text>
+          <Text style={styles.qrBtnText}>Show QR Pass</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
-          <Text style={styles.shareBtnText}>📤 Share Trip</Text>
+          <Text style={styles.shareBtnText}>Share Trip</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Bookings */}
-      <Text style={styles.sectionTitle}>Your Bookings</Text>
+      <View style={styles.bookingsSection}>
+        <Text style={styles.sectionLabel}>YOUR BOOKINGS</Text>
 
-      {trip.bookings.length === 0 ? (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyText}>No bookings yet. Bookings will appear here once confirmed.</Text>
-        </View>
-      ) : (
-        trip.bookings.map((booking: any, index: number) => (
-          <View key={index} style={styles.bookingCard}>
-            <View style={styles.bookingHeader}>
-              <Text style={styles.bookingEmoji}>{booking.emoji}</Text>
-              <View style={styles.bookingInfo}>
-                <Text style={styles.bookingType}>{booking.type}</Text>
-                <Text style={styles.bookingProvider}>{booking.provider}</Text>
-              </View>
-              <View style={styles.refContainer}>
-                <Text style={styles.refLabel}>REF</Text>
-                <Text style={styles.refCode}>{booking.reference}</Text>
-              </View>
-            </View>
-            <View style={styles.bookingDivider} />
-            <Text style={styles.bookingDatetime}>🕐 {booking.datetime}</Text>
-            <Text style={styles.bookingDetail}>{booking.detail}</Text>
+        {trip.bookings.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyText}>No bookings yet. Bookings will appear here once confirmed.</Text>
           </View>
-        ))
-      )}
+        ) : (
+          trip.bookings.map((booking: any, index: number) => (
+            <View key={index} style={styles.bookingCard}>
+              <View style={styles.bookingHeader}>
+                <View style={styles.bookingLeft}>
+                  <Text style={styles.bookingEmoji}>{booking.emoji}</Text>
+                  <View style={styles.bookingInfo}>
+                    <Text style={styles.bookingType}>{booking.type}</Text>
+                    <Text style={styles.bookingProvider}>{booking.provider}</Text>
+                  </View>
+                </View>
+                <View style={styles.refContainer}>
+                  <Text style={styles.refLabel}>REF</Text>
+                  <Text style={styles.refCode}>{booking.reference}</Text>
+                </View>
+              </View>
 
-      <View style={{ height: 40 }} />
+              <View style={styles.bookingDivider} />
+
+              <View style={styles.datetimePill}>
+                <Text style={styles.datetimeText}>🕐 {booking.datetime}</Text>
+              </View>
+              <Text style={styles.bookingDetail}>{booking.detail}</Text>
+            </View>
+          ))
+        )}
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f172a', padding: 24 },
-  backButton: { marginTop: 60, marginBottom: 24 },
-  backText: { color: '#38bdf8', fontSize: 16 },
-  destination: { fontSize: 28, fontWeight: 'bold', color: '#fff', marginBottom: 8 },
-  dates: { fontSize: 14, color: '#94a3b8', marginBottom: 12 },
-  badge: { alignSelf: 'flex-start', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 12 },
-  badgeText: { fontSize: 13, fontWeight: 'bold' },
-  budget: { fontSize: 15, color: '#fff', marginBottom: 24 },
-  buttonRow: { flexDirection: 'row', gap: 12, marginBottom: 32 },
-  qrBtn: { flex: 1, backgroundColor: '#38bdf8', borderRadius: 12, padding: 14, alignItems: 'center' },
-  qrBtnText: { color: '#0f172a', fontWeight: 'bold', fontSize: 15 },
-  shareBtn: { flex: 1, backgroundColor: '#1e293b', borderRadius: 12, padding: 14, alignItems: 'center' },
-  shareBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff', marginBottom: 16 },
-  bookingCard: { backgroundColor: '#1e293b', borderRadius: 12, padding: 16, marginBottom: 12 },
-  bookingHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  bookingEmoji: { fontSize: 28 },
-  bookingInfo: { flex: 1 },
-  bookingType: { fontSize: 15, fontWeight: 'bold', color: '#fff' },
-  bookingProvider: { fontSize: 13, color: '#94a3b8' },
-  refContainer: { alignItems: 'flex-end' },
-  refLabel: { fontSize: 10, color: '#94a3b8' },
-  refCode: { fontSize: 13, fontWeight: 'bold', color: '#38bdf8' },
-  bookingDivider: { height: 1, backgroundColor: '#0f172a', marginVertical: 12 },
-  bookingDatetime: { fontSize: 13, color: '#94a3b8', marginBottom: 4 },
-  bookingDetail: { fontSize: 13, color: '#fff' },
-  emptyCard: { backgroundColor: '#1e293b', borderRadius: 12, padding: 20, alignItems: 'center' },
-  emptyText: { color: '#94a3b8', textAlign: 'center', fontSize: 14 },
-  errorText: { color: '#fff', fontSize: 18, textAlign: 'center', marginTop: 100 },
+  container: {
+    flex: 1,
+    backgroundColor: '#0d0d14',
+  },
+  contentContainer: {
+    paddingHorizontal: 24,
+    paddingBottom: 60,
+  },
+  backButton: {
+    alignSelf: 'flex-start',
+    marginTop: 48,
+    marginBottom: 24,
+  },
+  backText: {
+    color: '#6366f1',
+    fontSize: 16,
+  },
+  headerSection: {
+    gap: 12,
+  },
+  headerLabel: {
+    fontSize: 10,
+    color: '#4b5563',
+    letterSpacing: 1.5,
+    fontWeight: '600',
+  },
+  destination: {
+    fontSize: 26,
+    color: '#ffffff',
+    fontWeight: 'bold',
+  },
+  datePill: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  dateText: {
+    fontSize: 13,
+    color: '#9ca3af',
+  },
+  statusBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  statusText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  budgetRow: {
+    marginTop: 2,
+  },
+  budgetLabel: {
+    fontSize: 10,
+    color: '#4b5563',
+    letterSpacing: 1.5,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  budgetValue: {
+    fontSize: 18,
+    color: '#ffffff',
+    fontWeight: 'bold',
+  },
+  headerDivider: {
+    marginTop: 24,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 24,
+  },
+  qrBtn: {
+    flex: 1,
+    height: 50,
+    backgroundColor: '#6366f1',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qrBtnText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  shareBtn: {
+    flex: 1,
+    height: 50,
+    backgroundColor: '#13131f',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shareBtnText: {
+    color: '#9ca3af',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  bookingsSection: {
+    marginTop: 24,
+    gap: 12,
+  },
+  sectionLabel: {
+    fontSize: 10,
+    color: '#4b5563',
+    letterSpacing: 1.5,
+    fontWeight: '600',
+  },
+  emptyCard: {
+    backgroundColor: '#13131f',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 14,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    fontSize: 13,
+    color: '#4b5563',
+    textAlign: 'center',
+  },
+  bookingCard: {
+    backgroundColor: '#13131f',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 14,
+    padding: 16,
+  },
+  bookingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  bookingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  bookingEmoji: {
+    fontSize: 24,
+  },
+  bookingInfo: {
+    flex: 1,
+  },
+  bookingType: {
+    fontSize: 10,
+    color: '#4b5563',
+    letterSpacing: 1.3,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  bookingProvider: {
+    fontSize: 15,
+    color: '#ffffff',
+    fontWeight: 'bold',
+  },
+  refContainer: {
+    alignItems: 'flex-end',
+    marginLeft: 10,
+  },
+  refLabel: {
+    fontSize: 10,
+    color: '#4b5563',
+    letterSpacing: 1.2,
+    fontWeight: '600',
+  },
+  refCode: {
+    fontSize: 13,
+    color: '#6366f1',
+    fontWeight: 'bold',
+    marginTop: 2,
+  },
+  bookingDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    marginVertical: 12,
+  },
+  datetimePill: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginBottom: 8,
+  },
+  datetimeText: {
+    fontSize: 12,
+    color: '#9ca3af',
+  },
+  bookingDetail: {
+    fontSize: 13,
+    color: '#9ca3af',
+  },
+  errorText: {
+    color: '#ffffff',
+    fontSize: 18,
+    textAlign: 'center',
+    marginTop: 100,
+  },
 });
