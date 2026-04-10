@@ -63,30 +63,36 @@ export default function ItineraryReviewScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.7}>
         <Text style={styles.backText}>← Back</Text>
       </TouchableOpacity>
 
-      <Text style={styles.title}>🗺️ Your Itinerary</Text>
-      <Text style={styles.subtitle}>Review your AI-generated trip plan</Text>
+      <View style={styles.headerSection}>
+        <Text style={styles.headerKicker}>ITINERARY REVIEW</Text>
+        <Text style={styles.headerTitle}>Your Trip Plan</Text>
+        <Text style={styles.headerSubtitle}>Review and confirm your AI-generated itinerary</Text>
+        <View style={styles.headerDivider} />
+      </View>
 
-      {/* Trip Summary */}
       <View style={styles.summaryCard}>
-        <Text style={styles.summaryTitle}>Trip Summary</Text>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryItem}>✈️ Paris, France</Text>
-          <Text style={styles.summaryItem}>📅 Jun 10–20, 2025</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryItem}>💰 Total: ${totalBudget}</Text>
-          <Text style={styles.summaryItem}>🌙 10 nights</Text>
+        <Text style={styles.cardKicker}>TRIP SUMMARY</Text>
+        <Text style={styles.destinationText}>{'\u2708\uFE0F'} Paris, France</Text>
+        <View style={styles.pillRow}>
+          <View style={styles.pill}>
+            <Text style={styles.pillText}>{'\uD83D\uDCC5'} Jun 10–20, 2025</Text>
+          </View>
+          <View style={styles.pill}>
+            <Text style={styles.pillText}>{'\uD83C\uDF19'} 10 nights</Text>
+          </View>
+          <View style={[styles.pill, styles.pillAccent]}>
+            <Text style={styles.pillAccentText}>{'\uD83D\uDCB0'} Total: ${totalBudget}</Text>
+          </View>
         </View>
       </View>
 
-      {/* Budget Breakdown */}
       <View style={styles.budgetCard}>
-        <Text style={styles.sectionTitle}>💰 Budget Breakdown</Text>
+        <Text style={styles.cardKicker}>BUDGET BREAKDOWN</Text>
         <View style={styles.budgetBar}>
           {budgetBreakdown.map((item) => (
             <View
@@ -100,135 +106,409 @@ export default function ItineraryReviewScreen() {
         </View>
         <View style={styles.budgetLegend}>
           {budgetBreakdown.map((item) => (
-            <View key={item.label} style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: item.color }]} />
-              <Text style={styles.legendText}>{item.emoji} {item.label}</Text>
+            <View key={item.label} style={styles.legendRow}>
+              <View style={styles.legendLeft}>
+                <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                <Text style={styles.legendLabel}>
+                  {item.emoji} {item.label}
+                </Text>
+              </View>
               <Text style={styles.legendAmount}>${item.amount}</Text>
             </View>
           ))}
         </View>
+        <View style={styles.budgetTotalRow}>
+          <Text style={styles.budgetTotalLabel}>TOTAL</Text>
+          <Text style={styles.budgetTotalValue}>${totalBudget}</Text>
+        </View>
       </View>
 
-      {/* Day by Day */}
-      <Text style={styles.sectionTitle}>📅 Day-by-Day Plan</Text>
-      {mockItinerary.map((day) => (
-        <View key={day.day} style={styles.dayCard}>
-          <TouchableOpacity
-            style={styles.dayHeader}
-            onPress={() => setExpandedDay(expandedDay === day.day ? null : day.day)}
-          >
-            <Text style={styles.dayTitle}>Day {day.day} — {day.title}</Text>
-            <Text style={styles.expandIcon}>{expandedDay === day.day ? '▲' : '▼'}</Text>
-          </TouchableOpacity>
+      <View style={styles.dayByDaySection}>
+        <Text style={styles.sectionKicker}>DAY-BY-DAY PLAN</Text>
+        {mockItinerary.map((day) => (
+          <View key={day.day} style={styles.dayCard}>
+            <TouchableOpacity
+              style={styles.dayHeader}
+              onPress={() => setExpandedDay(expandedDay === day.day ? null : day.day)}
+              activeOpacity={0.7}
+            >
+              <View>
+                <Text style={styles.dayKicker}>DAY {day.day}</Text>
+                <Text style={styles.dayTitle}>{day.title}</Text>
+              </View>
+              <Text style={styles.expandIcon}>{expandedDay === day.day ? '\u25B2' : '\u25BC'}</Text>
+            </TouchableOpacity>
 
-          {expandedDay === day.day && (
-            <View style={styles.dayContent}>
-              {day.flight && (
+            {expandedDay === day.day && (
+              <View style={styles.dayExpanded}>
+                <View style={styles.expandedDivider} />
+                {day.flight && (
+                  <View style={styles.itemRow}>
+                    <View style={styles.itemInfo}>
+                      <Text style={styles.itemTypeLabel}>{'\u2708\uFE0F'} FLIGHT</Text>
+                      <Text style={styles.itemValue}>{day.flight.info}</Text>
+                    </View>
+                    <View style={styles.itemRight}>
+                      <Text style={styles.itemCost}>{day.flight.cost}</Text>
+                      <TouchableOpacity style={styles.swapBtn} activeOpacity={0.7}>
+                        <Text style={styles.swapText}>Swap</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
                 <View style={styles.itemRow}>
                   <View style={styles.itemInfo}>
-                    <Text style={styles.itemLabel}>✈️ Flight</Text>
-                    <Text style={styles.itemValue}>{day.flight.info}</Text>
+                    <Text style={styles.itemTypeLabel}>{'\uD83C\uDFE8'} HOTEL</Text>
+                    <Text style={styles.itemValue}>{day.hotel.name}</Text>
+                    <Text style={styles.itemSubValue}>{day.hotel.type}</Text>
                   </View>
                   <View style={styles.itemRight}>
-                    <Text style={styles.itemCost}>{day.flight.cost}</Text>
-                    <TouchableOpacity style={styles.swapBtn}>
+                    <Text style={styles.itemCost}>{day.hotel.cost}</Text>
+                    <TouchableOpacity style={styles.swapBtn} activeOpacity={0.7}>
                       <Text style={styles.swapText}>Swap</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
-              )}
 
-              <View style={styles.itemRow}>
-                <View style={styles.itemInfo}>
-                  <Text style={styles.itemLabel}>🏨 Hotel</Text>
-                  <Text style={styles.itemValue}>{day.hotel.name}</Text>
-                  <Text style={styles.itemSubValue}>{day.hotel.type}</Text>
+                <View style={styles.itemRow}>
+                  <View style={styles.itemInfo}>
+                    <Text style={styles.itemTypeLabel}>{'\uD83D\uDE97'} TRANSPORT</Text>
+                    <Text style={styles.itemValue}>{day.transport.info}</Text>
+                  </View>
+                  <View style={styles.itemRight}>
+                    <Text style={styles.itemCost}>{day.transport.cost}</Text>
+                    <TouchableOpacity style={styles.swapBtn} activeOpacity={0.7}>
+                      <Text style={styles.swapText}>Swap</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <View style={styles.itemRight}>
-                  <Text style={styles.itemCost}>{day.hotel.cost}</Text>
-                  <TouchableOpacity style={styles.swapBtn}>
-                    <Text style={styles.swapText}>Swap</Text>
-                  </TouchableOpacity>
-                </View>
+
+                <Text style={styles.activitiesLabel}>ACTIVITIES</Text>
+                {day.activities.map((activity, index) => (
+                  <View key={index} style={styles.activityRow}>
+                    <Text style={styles.activityName}>{activity.name}</Text>
+                    <Text style={styles.activityCost}>{activity.cost}</Text>
+                  </View>
+                ))}
               </View>
+            )}
+          </View>
+        ))}
+      </View>
 
-              <View style={styles.itemRow}>
-                <View style={styles.itemInfo}>
-                  <Text style={styles.itemLabel}>🚗 Transport</Text>
-                  <Text style={styles.itemValue}>{day.transport.info}</Text>
-                </View>
-                <View style={styles.itemRight}>
-                  <Text style={styles.itemCost}>{day.transport.cost}</Text>
-                  <TouchableOpacity style={styles.swapBtn}>
-                    <Text style={styles.swapText}>Swap</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <Text style={styles.activitiesLabel}>🎭 Activities</Text>
-              {day.activities.map((activity, index) => (
-                <View key={index} style={styles.activityRow}>
-                  <Text style={styles.activityName}>{activity.name}</Text>
-                  <Text style={styles.activityCost}>{activity.cost}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-      ))}
-
-      <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirm}>
-        <Text style={styles.confirmText}>✅ Confirm & Generate QR Pass</Text>
+      <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirm} activeOpacity={0.85}>
+        <Text style={styles.confirmText}>Confirm & Generate QR Pass</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.rejectBtn} onPress={() => router.back()}>
-        <Text style={styles.rejectText}>🔄 Regenerate</Text>
+      <TouchableOpacity style={styles.regenerateBtn} onPress={() => router.back()} activeOpacity={0.7}>
+        <Text style={styles.regenerateText}>Regenerate</Text>
       </TouchableOpacity>
-
-      <View style={{ height: 40 }} />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f172a', padding: 24 },
-  backButton: { marginTop: 60, marginBottom: 16 },
-  backText: { color: '#38bdf8', fontSize: 16 },
-  title: { fontSize: 28, fontWeight: 'bold', color: '#fff', marginBottom: 8 },
-  subtitle: { fontSize: 14, color: '#94a3b8', marginBottom: 24 },
-  summaryCard: { backgroundColor: '#1e293b', borderRadius: 12, padding: 16, marginBottom: 16 },
-  summaryTitle: { fontSize: 16, fontWeight: 'bold', color: '#38bdf8', marginBottom: 12 },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  summaryItem: { fontSize: 14, color: '#fff' },
-  budgetCard: { backgroundColor: '#1e293b', borderRadius: 12, padding: 16, marginBottom: 24 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#fff', marginBottom: 12 },
-  budgetBar: { flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', marginBottom: 16 },
-  budgetSegment: { height: '100%' },
-  budgetLegend: { gap: 8 },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  legendDot: { width: 10, height: 10, borderRadius: 5 },
-  legendText: { color: '#fff', fontSize: 13, flex: 1 },
-  legendAmount: { color: '#94a3b8', fontSize: 13 },
-  dayCard: { backgroundColor: '#1e293b', borderRadius: 12, marginBottom: 12, overflow: 'hidden' },
-  dayHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
-  dayTitle: { fontSize: 15, fontWeight: 'bold', color: '#38bdf8' },
-  expandIcon: { color: '#94a3b8', fontSize: 12 },
-  dayContent: { paddingHorizontal: 16, paddingBottom: 16 },
-  itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#0f172a' },
-  itemInfo: { flex: 1 },
-  itemLabel: { fontSize: 12, color: '#94a3b8', marginBottom: 2 },
-  itemValue: { fontSize: 14, color: '#fff' },
-  itemSubValue: { fontSize: 12, color: '#94a3b8' },
-  itemRight: { alignItems: 'flex-end', gap: 4 },
-  itemCost: { fontSize: 14, color: '#22c55e', fontWeight: 'bold' },
-  swapBtn: { backgroundColor: '#0f172a', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
-  swapText: { color: '#38bdf8', fontSize: 11 },
-  activitiesLabel: { fontSize: 12, color: '#94a3b8', marginBottom: 8 },
-  activityRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  activityName: { fontSize: 13, color: '#fff', flex: 1 },
-  activityCost: { fontSize: 13, color: '#f59e0b' },
-  confirmBtn: { backgroundColor: '#22c55e', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 8, marginBottom: 12 },
-  confirmText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  rejectBtn: { backgroundColor: '#1e293b', borderRadius: 12, padding: 16, alignItems: 'center' },
-  rejectText: { color: '#38bdf8', fontWeight: 'bold', fontSize: 16 },
+  container: {
+    flex: 1,
+    backgroundColor: '#0d0d14',
+  },
+  content: {
+    paddingHorizontal: 24,
+    paddingBottom: 60,
+    gap: 20,
+  },
+  backButton: {
+    alignSelf: 'flex-start',
+    marginTop: 48,
+    paddingVertical: 4,
+  },
+  backText: {
+    color: '#6366f1',
+    fontSize: 16,
+    backgroundColor: 'transparent',
+  },
+  headerSection: {
+    gap: 6,
+  },
+  headerKicker: {
+    fontSize: 10,
+    color: '#4b5563',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  headerTitle: {
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#9ca3af',
+  },
+  headerDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    marginTop: 10,
+  },
+  summaryCard: {
+    backgroundColor: '#13131f',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 14,
+    padding: 16,
+    gap: 12,
+  },
+  cardKicker: {
+    fontSize: 10,
+    color: '#4b5563',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  destinationText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+  pillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  pill: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  pillText: {
+    fontSize: 13,
+    color: '#9ca3af',
+  },
+  pillAccent: {
+    backgroundColor: 'rgba(99,102,241,0.15)',
+    borderColor: 'rgba(99,102,241,0.25)',
+  },
+  pillAccentText: {
+    fontSize: 13,
+    color: '#6366f1',
+    fontWeight: '600',
+  },
+  budgetCard: {
+    backgroundColor: '#13131f',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 14,
+    padding: 16,
+    gap: 14,
+  },
+  budgetBar: {
+    flexDirection: 'row',
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  budgetSegment: {
+    height: '100%',
+  },
+  budgetLegend: {
+    gap: 10,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  legendLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  legendLabel: {
+    fontSize: 13,
+    color: '#9ca3af',
+    flex: 1,
+  },
+  legendAmount: {
+    fontSize: 13,
+    color: '#ffffff',
+    fontWeight: 'bold',
+  },
+  budgetTotalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+  },
+  budgetTotalLabel: {
+    fontSize: 10,
+    color: '#4b5563',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  budgetTotalValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+  dayByDaySection: {
+    gap: 12,
+  },
+  sectionKicker: {
+    fontSize: 10,
+    color: '#4b5563',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  dayCard: {
+    backgroundColor: '#13131f',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  dayHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  dayKicker: {
+    fontSize: 10,
+    color: '#4b5563',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  dayTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#ffffff',
+    marginTop: 4,
+  },
+  expandIcon: {
+    color: '#6366f1',
+    fontSize: 14,
+  },
+  dayExpanded: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  expandedDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    marginBottom: 14,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingBottom: 12,
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  itemInfo: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  itemTypeLabel: {
+    fontSize: 10,
+    color: '#4b5563',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  itemValue: {
+    fontSize: 14,
+    color: '#ffffff',
+  },
+  itemSubValue: {
+    fontSize: 12,
+    color: '#9ca3af',
+    marginTop: 2,
+  },
+  itemRight: {
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  itemCost: {
+    fontSize: 14,
+    color: '#ffffff',
+    fontWeight: 'bold',
+  },
+  swapBtn: {
+    backgroundColor: 'rgba(99,102,241,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(99,102,241,0.3)',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  swapText: {
+    color: '#6366f1',
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  activitiesLabel: {
+    fontSize: 10,
+    color: '#4b5563',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  activityRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  activityName: {
+    fontSize: 14,
+    color: '#9ca3af',
+    flex: 1,
+    paddingRight: 12,
+  },
+  activityCost: {
+    fontSize: 14,
+    color: '#f59e0b',
+    fontWeight: '600',
+  },
+  confirmBtn: {
+    width: '100%',
+    height: 54,
+    borderRadius: 12,
+    backgroundColor: '#6366f1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  regenerateBtn: {
+    width: '100%',
+    height: 54,
+    borderRadius: 12,
+    backgroundColor: '#13131f',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  regenerateText: {
+    color: '#9ca3af',
+    fontSize: 16,
+  },
 });
