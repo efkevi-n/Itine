@@ -111,7 +111,7 @@ export default function QRPassScreen() {
   if (loading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#38bdf8" />
+        <ActivityIndicator size="large" color="#6366f1" />
         <Text style={styles.loadingText}>Verifying identity...</Text>
       </View>
     );
@@ -123,7 +123,11 @@ export default function QRPassScreen() {
         <Text style={styles.lockIcon}>🔒</Text>
         <Text style={styles.authTitle}>Authentication Required</Text>
         <Text style={styles.authSubtitle}>Your QR Pass is protected by biometric authentication.</Text>
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : null}
         <TouchableOpacity style={styles.authBtn} onPress={authenticate}>
           <Text style={styles.authBtnText}>Try Again</Text>
         </TouchableOpacity>
@@ -135,13 +139,17 @@ export default function QRPassScreen() {
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
         <Text style={styles.backText}>← Back</Text>
       </TouchableOpacity>
 
-      <Text style={styles.title}>🎫 Your QR Pass</Text>
-      <Text style={styles.subtitle}>Show this at check-in points</Text>
+      <View style={styles.header}>
+        <Text style={styles.headerLabel}>QR PASS</Text>
+        <Text style={styles.title}>Your QR Pass</Text>
+        <Text style={styles.subtitle}>Show this at check-in points</Text>
+      </View>
+      <View style={styles.divider} />
 
       {/* QR Code */}
       <View style={styles.qrContainer}>
@@ -168,11 +176,13 @@ export default function QRPassScreen() {
       {/* Trip Summary */}
       <View style={styles.summaryCard}>
         <Text style={styles.summaryDestination}>✈️ {tripData.destination}</Text>
-        <Text style={styles.summaryDates}>📅 {tripData.dates}</Text>
+        <View style={styles.datesPill}>
+          <Text style={styles.summaryDates}>{tripData.dates}</Text>
+        </View>
       </View>
 
       {/* Services */}
-      <Text style={styles.sectionTitle}>This pass covers:</Text>
+      <Text style={styles.sectionTitle}>THIS PASS COVERS</Text>
       {tripData.services.map((service, index) => (
         <View key={index} style={styles.serviceRow}>
           <Text style={styles.serviceEmoji}>{service.emoji}</Text>
@@ -186,41 +196,119 @@ export default function QRPassScreen() {
       <View style={styles.offlineBadge}>
         <Text style={styles.offlineText}>✅ Works Offline — QR stored securely on device</Text>
       </View>
-
-      <View style={{ height: 40 }} />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f172a', padding: 24 },
-  centerContainer: { flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  backButton: { marginTop: 60, marginBottom: 16 },
-  backText: { color: '#38bdf8', fontSize: 16 },
-  title: { fontSize: 28, fontWeight: 'bold', color: '#fff', marginBottom: 8 },
-  subtitle: { fontSize: 14, color: '#94a3b8', marginBottom: 24 },
-  qrContainer: { backgroundColor: '#fff', borderRadius: 16, padding: 24, alignItems: 'center', marginBottom: 24 },
+  container: { flex: 1, backgroundColor: '#0d0d14' },
+  contentContainer: { paddingHorizontal: 24, paddingBottom: 60 },
+  centerContainer: {
+    flex: 1,
+    backgroundColor: '#0d0d14',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24
+  },
+  backButton: { alignSelf: 'flex-start', marginTop: 48, marginBottom: 20 },
+  backText: { color: '#6366f1', fontSize: 16 },
+  header: { marginBottom: 12 },
+  headerLabel: {
+    fontSize: 10,
+    color: '#4b5563',
+    letterSpacing: 1.5,
+    marginBottom: 8
+  },
+  title: { fontSize: 26, fontWeight: 'bold', color: '#ffffff', marginBottom: 6 },
+  subtitle: { fontSize: 13, color: '#9ca3af' },
+  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginBottom: 20 },
+  qrContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 28,
+    alignItems: 'center',
+    marginBottom: 20,
+    shadowColor: '#6366f1',
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10
+  },
   watermark: { marginBottom: 16 },
-  watermarkName: { color: '#0f172a', fontWeight: 'bold', fontSize: 16 },
+  watermarkName: { color: '#0d0d14', fontWeight: 'bold', fontSize: 16 },
   countdownContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16 },
-  countdownLabel: { color: '#94a3b8', fontSize: 13 },
+  countdownLabel: { color: '#9ca3af', fontSize: 13 },
   countdownTimer: { color: '#22c55e', fontWeight: 'bold', fontSize: 18 },
-  summaryCard: { backgroundColor: '#1e293b', borderRadius: 12, padding: 16, marginBottom: 24 },
-  summaryDestination: { fontSize: 16, fontWeight: 'bold', color: '#fff', marginBottom: 4 },
-  summaryDates: { fontSize: 14, color: '#94a3b8' },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#fff', marginBottom: 12 },
-  serviceRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#1e293b', borderRadius: 10, padding: 14, marginBottom: 10 },
-  serviceEmoji: { fontSize: 24 },
-  serviceLabel: { fontSize: 14, fontWeight: 'bold', color: '#fff' },
-  serviceDetail: { fontSize: 12, color: '#94a3b8' },
-  offlineBadge: { backgroundColor: '#14532d', borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 8 },
+  summaryCard: {
+    backgroundColor: '#13131f',
+    borderColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 20
+  },
+  summaryDestination: { fontSize: 16, fontWeight: 'bold', color: '#ffffff', marginBottom: 10 },
+  datesPill: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6
+  },
+  summaryDates: { fontSize: 13, color: '#9ca3af' },
+  sectionTitle: {
+    fontSize: 10,
+    color: '#4b5563',
+    letterSpacing: 1.5,
+    marginBottom: 10
+  },
+  serviceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#13131f',
+    borderColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10
+  },
+  serviceEmoji: { fontSize: 22 },
+  serviceLabel: { fontSize: 14, fontWeight: 'bold', color: '#ffffff' },
+  serviceDetail: { fontSize: 12, color: '#9ca3af' },
+  offlineBadge: {
+    backgroundColor: 'rgba(34,197,94,0.08)',
+    borderColor: 'rgba(34,197,94,0.2)',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    marginTop: 8
+  },
   offlineText: { color: '#22c55e', fontSize: 13 },
-  lockIcon: { fontSize: 60, marginBottom: 24 },
-  authTitle: { fontSize: 22, fontWeight: 'bold', color: '#fff', marginBottom: 8 },
-  authSubtitle: { fontSize: 14, color: '#94a3b8', textAlign: 'center', marginBottom: 24 },
-  error: { backgroundColor: '#7f1d1d', color: '#fca5a5', padding: 12, borderRadius: 8, marginBottom: 16, textAlign: 'center' },
-  authBtn: { backgroundColor: '#38bdf8', borderRadius: 10, padding: 14, alignItems: 'center', width: '100%', marginBottom: 16 },
-  authBtnText: { color: '#0f172a', fontWeight: 'bold', fontSize: 16 },
-  backLink: { color: '#94a3b8', fontSize: 14 },
-  loadingText: { color: '#94a3b8', marginTop: 16, fontSize: 14 },
+  lockIcon: { fontSize: 56, marginBottom: 24 },
+  authTitle: { fontSize: 22, fontWeight: 'bold', color: '#ffffff', marginBottom: 8 },
+  authSubtitle: { fontSize: 14, color: '#9ca3af', textAlign: 'center', marginBottom: 24 },
+  errorBox: {
+    width: '100%',
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    borderColor: 'rgba(239,68,68,0.2)',
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16
+  },
+  errorText: { color: '#f87171', textAlign: 'center' },
+  authBtn: {
+    width: '100%',
+    height: 50,
+    backgroundColor: '#6366f1',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  authBtnText: { color: '#ffffff', fontWeight: 'bold', fontSize: 16 },
+  backLink: { color: '#4b5563', fontSize: 14, marginTop: 16 },
+  loadingText: { color: '#9ca3af', marginTop: 16, fontSize: 14 },
 });
