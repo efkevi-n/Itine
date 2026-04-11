@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, Linking } from 'react-native';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
@@ -9,7 +10,6 @@ import 'react-native-reanimated';
 import { setUnauthorizedHandler } from '@/api/client';
 import { NOTIFICATION_ROUTES } from '@/constants/notifications';
 import { OFFLINE_MESSAGES } from '@/constants/offline';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useConnectivity } from '@/hooks/useConnectivity';
 import type { AppNotification, NotificationType } from '@/types/notification';
 import { handleDeepLink } from '@/utils/deepLinkHandler';
@@ -152,12 +152,16 @@ export default function RootLayout() {
             <Text style={styles.syncToastText}>{OFFLINE_MESSAGES.backOnlineSyncing}</Text>
           </View>
         ) : null}
-        <Stack>
-          <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-          <Stack.Screen name="login" options={{ headerShown: false }} />
-          <Stack.Screen name="register" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="onboarding" />
+          <Stack.Screen name="login" />
+          <Stack.Screen name="register" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="new-trip" />
+          <Stack.Screen name="itinerary-review" />
+          <Stack.Screen name="trip-detail" />
+          <Stack.Screen name="qr-pass" />
+          <Stack.Screen name="modal" options={{ presentation: 'modal', headerShown: true, title: 'Modal' }} />
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView
+  StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
 import { api } from '@/api/client';
 import { DestinationSearch } from '@/components/DestinationSearch';
 import { FullScreenLoader } from '@/components/FullScreenLoader';
@@ -11,19 +12,17 @@ import { useConnectivity } from '@/hooks/useConnectivity';
 import { OFFLINE_MESSAGES } from '@/constants/offline';
 import { LOADER_MESSAGES_ITINERARY } from '@/constants/loader';
 import { getErrorMessage } from '@/utils/errorHandler';
-import { theme } from '@/constants/theme';
 
 const currencies = ['USD', 'EUR', 'GBP', 'TRY'];
 
-// id = form value; apiValue = sent to API (e.g. "budget hotel")
 const preferences = [
-  { id: 'budget_hotel', label: '🏨 Budget hotel', apiValue: 'budget hotel' },
-  { id: 'hostel', label: '🛏️ Hostel', apiValue: 'hostel' },
-  { id: 'private_room', label: '🚪 Private room', apiValue: 'private room' },
-  { id: 'window_seat', label: '🪟 Window seat', apiValue: 'window seat' },
-  { id: 'aisle_seat', label: '🪑 Aisle seat', apiValue: 'aisle seat' },
-  { id: 'vegetarian', label: '🥗 Vegetarian meals', apiValue: 'vegetarian meals' },
-  { id: 'nonstop_flights', label: '✈️ Non-stop flights only', apiValue: 'non-stop flights only' },
+  { id: 'budget_hotel', label: 'Budget Hotel', apiValue: 'budget hotel' },
+  { id: 'hostel', label: 'Hostel', apiValue: 'hostel' },
+  { id: 'private_room', label: 'Private Room', apiValue: 'private room' },
+  { id: 'window_seat', label: 'Window Seat', apiValue: 'window seat' },
+  { id: 'aisle_seat', label: 'Aisle Seat', apiValue: 'aisle seat' },
+  { id: 'vegetarian', label: 'Vegetarian', apiValue: 'vegetarian meals' },
+  { id: 'nonstop_flights', label: 'Non-stop Flights', apiValue: 'non-stop flights only' },
 ];
 
 function parseDate(str: string): Date | null {
@@ -72,6 +71,16 @@ export default function NewTripScreen() {
   const [selectedPrefs, setSelectedPrefs] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 520,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   const togglePref = (id: string) => {
     if (loading) return;
@@ -91,7 +100,6 @@ export default function NewTripScreen() {
       setError(validationError);
       return;
     }
-
     setLoading(true);
     try {
       const createRes = await api.post<{ id?: string; data?: { id?: string } }>('/trips', {
@@ -130,9 +138,7 @@ export default function NewTripScreen() {
       const maxAttempts = 20;
       for (let i = 0; i < maxAttempts; i++) {
         await new Promise((r) => setTimeout(r, pollInterval));
-        const jobRes = await api.get<{ status?: string }>(
-          `/itinerary/jobs/${jobId}`
-        );
+        const jobRes = await api.get<{ status?: string }>(`/itinerary/jobs/${jobId}`);
         const status = (jobRes.data?.status ?? '').toLowerCase();
         if (status === 'complete' || status === 'completed') {
           setLoading(false);
@@ -159,113 +165,160 @@ export default function NewTripScreen() {
 
   const disabled = loading || !isOnline;
 
+  const inputBorder = (field: string) => ({
+    borderColor: focusedField === field
+      ? 'rgba(99,102,241,0.5)'
+      : 'rgba(255,255,255,0.07)',
+  });
+
   return (
     <>
-      <ScrollView style={styles.container}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} disabled={disabled}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
+      <View style={styles.screen}>
+        <View style={styles.glowOrbTop} />
+        <View style={styles.glowOrbBottom} />
 
-        <Text style={styles.title}>✈️ Plan a New Trip</Text>
-        <Text style={styles.subtitle}>Tell us where you want to go</Text>
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <Text style={styles.label}>Destination City *</Text>
-        <DestinationSearch
-          placeholder="e.g. Paris, Tokyo, New York"
-          value={destination}
-          onSelect={(city, country) => setDestination(`${city}, ${country}`)}
-          editable={!disabled}
-        />
-
-        <Text style={styles.label}>Origin City *</Text>
-        <DestinationSearch
-          placeholder="e.g. London, Istanbul, Berlin"
-          value={origin}
-          onSelect={(city, country) => setOrigin(`${city}, ${country}`)}
-          editable={!disabled}
-        />
-
-        <Text style={styles.label}>Start Date *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="YYYY-MM-DD (e.g. 2026-04-01)"
-          placeholderTextColor="#aaa"
-          value={startDate}
-          onChangeText={setStartDate}
-          editable={!disabled}
-        />
-
-        <Text style={styles.label}>End Date *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="YYYY-MM-DD (e.g. 2026-04-07)"
-          placeholderTextColor="#aaa"
-          value={endDate}
-          onChangeText={setEndDate}
-          editable={!disabled}
-        />
-
-        <Text style={styles.label}>Total Budget *</Text>
-        <View style={styles.budgetRow}>
-          <TextInput
-            style={[styles.input, styles.inputBudget]}
-            placeholder="e.g. 2000"
-            placeholderTextColor="#aaa"
-            value={budget}
-            onChangeText={setBudget}
-            keyboardType="numeric"
-            editable={!disabled}
-          />
-          <View style={styles.currencyRow}>
-            {currencies.map((c) => (
-              <TouchableOpacity
-                key={c}
-                style={[styles.currencyBtn, currency === c && styles.currencyBtnActive]}
-                onPress={() => !disabled && setCurrency(c)}
-              >
-                <Text style={[styles.currencyText, currency === c && styles.currencyTextActive]}>
-                  {c}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <Text style={styles.label}>Preferences (optional)</Text>
-        <View style={styles.prefsGrid}>
-          {preferences.map((pref) => (
-            <TouchableOpacity
-              key={pref.id}
-              style={[styles.prefBtn, selectedPrefs.includes(pref.id) && styles.prefBtnActive]}
-              onPress={() => togglePref(pref.id)}
-            >
-              <Text
-                style={[
-                  styles.prefText,
-                  selectedPrefs.includes(pref.id) && styles.prefTextActive,
-                ]}
-              >
-                {pref.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {!isOnline ? (
-          <Text style={styles.error}>{OFFLINE_MESSAGES.cannotCreateTrip}</Text>
-        ) : null}
-        <TouchableOpacity
-          style={[styles.generateBtn, disabled && styles.generateBtnDisabled]}
-          onPress={handleGenerate}
-          disabled={disabled}
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <Text style={styles.generateText}>🤖 Generate My Trip</Text>
-        </TouchableOpacity>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Animated.View style={{ opacity: fadeAnim }}>
+              <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} disabled={disabled}>
+                <Feather name="chevron-left" size={18} color="#6366f1" />
+                <Text style={styles.backText}>Back</Text>
+              </TouchableOpacity>
 
-        <View style={styles.spacer} />
-      </ScrollView>
+              <Text style={styles.eyebrow}>NEW TRIP</Text>
+              <Text style={styles.title}>Plan Your Journey</Text>
+              <Text style={styles.subtitle}>Fill in the details below</Text>
+              <View style={styles.divider} />
+
+              {error ? (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
+
+              {!isOnline ? (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>{OFFLINE_MESSAGES.cannotCreateTrip}</Text>
+                </View>
+              ) : null}
+
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>DESTINATION CITY</Text>
+                <DestinationSearch
+                  placeholder="e.g. Paris, Tokyo, New York"
+                  value={destination}
+                  onSelect={(city, country) => setDestination(`${city}, ${country}`)}
+                  editable={!disabled}
+                />
+              </View>
+
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>ORIGIN CITY</Text>
+                <DestinationSearch
+                  placeholder="e.g. London, Istanbul, Berlin"
+                  value={origin}
+                  onSelect={(city, country) => setOrigin(`${city}, ${country}`)}
+                  editable={!disabled}
+                />
+              </View>
+
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>START DATE</Text>
+                <TextInput
+                  style={[styles.input, inputBorder('startDate')]}
+                  placeholder="e.g. 2026-06-10"
+                  placeholderTextColor="#4b5563"
+                  value={startDate}
+                  onChangeText={setStartDate}
+                  editable={!disabled}
+                  onFocus={() => setFocusedField('startDate')}
+                  onBlur={() => setFocusedField(null)}
+                />
+              </View>
+
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>END DATE</Text>
+                <TextInput
+                  style={[styles.input, inputBorder('endDate')]}
+                  placeholder="e.g. 2026-06-20"
+                  placeholderTextColor="#4b5563"
+                  value={endDate}
+                  onChangeText={setEndDate}
+                  editable={!disabled}
+                  onFocus={() => setFocusedField('endDate')}
+                  onBlur={() => setFocusedField(null)}
+                />
+              </View>
+
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>TOTAL BUDGET</Text>
+                <View style={styles.budgetRow}>
+                  <TextInput
+                    style={[styles.input, styles.budgetInput, inputBorder('budget')]}
+                    placeholder="e.g. 2000"
+                    placeholderTextColor="#4b5563"
+                    value={budget}
+                    onChangeText={setBudget}
+                    keyboardType="numeric"
+                    editable={!disabled}
+                    onFocus={() => setFocusedField('budget')}
+                    onBlur={() => setFocusedField(null)}
+                  />
+                  <View style={styles.currencyRow}>
+                    {currencies.map(c => (
+                      <TouchableOpacity
+                        key={c}
+                        style={[styles.currencyBtn, currency === c && styles.currencyBtnActive]}
+                        onPress={() => !disabled && setCurrency(c)}
+                      >
+                        <Text style={[styles.currencyText, currency === c && styles.currencyTextActive]}>
+                          {c}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>PREFERENCES</Text>
+                <View style={styles.prefsGrid}>
+                  {preferences.map(pref => (
+                    <TouchableOpacity
+                      key={pref.id}
+                      style={[styles.prefChip, selectedPrefs.includes(pref.id) && styles.prefChipActive]}
+                      onPress={() => togglePref(pref.id)}
+                    >
+                      <Text style={[styles.prefText, selectedPrefs.includes(pref.id) && styles.prefTextActive]}>
+                        {pref.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.generateBtn, disabled && styles.generateBtnDisabled]}
+                onPress={handleGenerate}
+                disabled={disabled}
+                activeOpacity={0.9}
+              >
+                <Text style={styles.generateBtnText}>Generate My Trip</Text>
+              </TouchableOpacity>
+
+              <View style={{ height: 40 }} />
+            </Animated.View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </View>
 
       <FullScreenLoader visible={loading} messages={LOADER_MESSAGES_ITINERARY} />
     </>
@@ -273,57 +326,82 @@ export default function NewTripScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f172a', padding: 24 },
-  backButton: { marginTop: 60, marginBottom: 16 },
-  backText: { color: '#38bdf8', fontSize: 16 },
-  title: { fontSize: 28, fontWeight: 'bold', color: '#fff', marginBottom: 8 },
-  subtitle: { fontSize: 14, color: '#94a3b8', marginBottom: 24 },
-  error: {
-    backgroundColor: '#7f1d1d',
-    color: '#fca5a5',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    textAlign: 'center',
+  screen: { flex: 1, backgroundColor: '#0d0d14' },
+  flex: { flex: 1 },
+  glowOrbTop: {
+    position: 'absolute', top: -100, right: -80,
+    width: 320, height: 320, borderRadius: 999,
+    backgroundColor: 'rgba(99,102,241,0.08)',
   },
-  label: { fontSize: 13, color: '#94a3b8', marginBottom: 6, marginTop: 8 },
+  glowOrbBottom: {
+    position: 'absolute', bottom: -120, left: -80,
+    width: 280, height: 280, borderRadius: 999,
+    backgroundColor: 'rgba(99,102,241,0.06)',
+  },
+  scroll: { flex: 1 },
+  content: { paddingHorizontal: 24, paddingBottom: 60 },
+  backBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    marginTop: 48, marginBottom: 24, alignSelf: 'flex-start',
+  },
+  backText: { color: '#6366f1', fontSize: 15, fontWeight: '600' },
+  eyebrow: {
+    fontSize: 10, color: '#4b5563', letterSpacing: 1.5,
+    textTransform: 'uppercase', marginBottom: 8,
+  },
+  title: { fontSize: 26, fontWeight: '700', color: '#ffffff', marginBottom: 6 },
+  subtitle: { fontSize: 13, color: '#9ca3af', marginBottom: 16 },
+  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginBottom: 24 },
+  errorBox: {
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)',
+    borderRadius: 10, padding: 12, marginBottom: 20,
+  },
+  errorText: { color: '#f87171', textAlign: 'center', fontSize: 14 },
+  field: { marginBottom: 20 },
+  fieldLabel: {
+    fontSize: 10, color: '#4b5563', letterSpacing: 1.5,
+    textTransform: 'uppercase', marginBottom: 8,
+  },
   input: {
-    backgroundColor: '#1e293b',
-    color: '#fff',
-    borderRadius: 10,
-    padding: 14,
-    fontSize: 15,
-    marginBottom: 8,
+    backgroundColor: '#13131f',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 12, height: 52,
+    paddingHorizontal: 16,
+    fontSize: 15, color: '#ffffff',
   },
-  budgetRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  inputBudget: { flex: 1, marginRight: 8 },
+  budgetRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  budgetInput: { flex: 1 },
   currencyRow: { flexDirection: 'row', gap: 6 },
   currencyBtn: {
-    backgroundColor: '#1e293b',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    backgroundColor: '#13131f',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 10,
   },
-  currencyBtnActive: { backgroundColor: '#38bdf8' },
-  currencyText: { color: '#94a3b8', fontSize: 13, fontWeight: 'bold' },
-  currencyTextActive: { color: '#0f172a' },
-  prefsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 },
-  prefBtn: {
-    backgroundColor: '#1e293b',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+  currencyBtnActive: {
+    backgroundColor: 'rgba(99,102,241,0.15)',
+    borderColor: '#6366f1',
   },
-  prefBtnActive: { backgroundColor: '#38bdf8' },
-  prefText: { color: '#94a3b8', fontSize: 13 },
-  prefTextActive: { color: '#0f172a', fontWeight: 'bold' },
+  currencyText: { color: '#9ca3af', fontSize: 13, fontWeight: '600' },
+  currencyTextActive: { color: '#6366f1' },
+  prefsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  prefChip: {
+    backgroundColor: '#13131f',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
+  },
+  prefChipActive: {
+    backgroundColor: 'rgba(99,102,241,0.15)',
+    borderColor: '#6366f1',
+  },
+  prefText: { color: '#9ca3af', fontSize: 14 },
+  prefTextActive: { color: '#6366f1', fontWeight: '600' },
   generateBtn: {
-    backgroundColor: '#38bdf8',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
+    width: '100%', height: 54, backgroundColor: '#6366f1',
+    borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    marginTop: 8,
   },
-  generateBtnDisabled: { opacity: 0.7 },
-  generateText: { color: theme.colors.background, fontWeight: 'bold', fontSize: 16 },
-  spacer: { height: 40 },
+  generateBtnDisabled: { opacity: 0.6 },
+  generateBtnText: { color: '#ffffff', fontWeight: '700', fontSize: 16 },
 });

@@ -1,44 +1,49 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-  Share,
-} from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import { tripsApi } from "@/api/trips";
-import { bookingsApi } from "@/api/bookings";
-import { TripHeader } from "@/components/TripHeader";
-import { BookingCard } from "@/components/BookingCard";
-import { OfflineBanner } from "@/components/OfflineBanner";
-import type { TripDetailView, BookingDetailView } from "@/types/trip";
-import { isQrPassAvailable } from "@/utils/tripStatus";
-import { theme } from "@/constants/theme";
-import {
-  mapTripToDetailView,
-  mapBookingToDetailView,
-} from "@/utils/tripDetailMappers";
-import { formatTripDateRange } from "@/utils/dateFormat";
-import { useConnectivity } from "@/hooks/useConnectivity";
-import { cacheTrip, getCachedTrip } from "@/utils/offlineCache";
-import { getDeepLinkForTrip } from "@/utils/deepLinkHandler";
-import { SHARE_FOOTER } from "@/constants/deepLinks";
+  View, Text, TouchableOpacity, StyleSheet,
+  ScrollView, ActivityIndicator, Share, Animated,
+} from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
+import { tripsApi } from '@/api/trips';
+import { bookingsApi } from '@/api/bookings';
+import { BookingCard } from '@/components/BookingCard';
+import { OfflineBanner } from '@/components/OfflineBanner';
+import type { TripDetailView, BookingDetailView } from '@/types/trip';
+import { isQrPassAvailable } from '@/utils/tripStatus';
+import { mapTripToDetailView, mapBookingToDetailView } from '@/utils/tripDetailMappers';
+import { formatTripDateRange } from '@/utils/dateFormat';
+import { useConnectivity } from '@/hooks/useConnectivity';
+import { cacheTrip, getCachedTrip } from '@/utils/offlineCache';
+import { getDeepLinkForTrip } from '@/utils/deepLinkHandler';
+import { SHARE_FOOTER } from '@/constants/deepLinks';
+
+const STATUS_COLORS: Record<string, string> = {
+  PENDING: '#f59e0b',
+  CONFIRMED: '#38bdf8',
+  ACTIVE: '#22c55e',
+  COMPLETED: '#94a3b8',
+  CANCELLED: '#ef4444',
+};
 
 export default function TripDetailScreen() {
   const router = useRouter();
   const { isOnline } = useConnectivity();
-  const { id, tripId } = useLocalSearchParams<{
-    id?: string;
-    tripId?: string;
-  }>();
+  const { id, tripId } = useLocalSearchParams<{ id?: string; tripId?: string }>();
   const resolvedId = tripId ?? id;
   const [trip, setTrip] = useState<TripDetailView | null>(null);
   const [bookings, setBookings] = useState<BookingDetailView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 520,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   const loadData = useCallback(async () => {
     if (!resolvedId) return;
@@ -50,18 +55,14 @@ export default function TripDetailScreen() {
         bookingsApi.getBookingsForTrip(resolvedId).catch(() => ({ data: [] })),
       ]);
       const tripData = tripRes.data as Record<string, unknown>;
-      if (!tripData || typeof tripData !== "object") {
-        setError("Trip not found.");
+      if (!tripData || typeof tripData !== 'object') {
+        setError('Trip not found.');
         setLoading(false);
         return;
       }
       setTrip(mapTripToDetailView(tripData));
       const rawList = Array.isArray(bookingsRes.data) ? bookingsRes.data : [];
-      setBookings(
-        rawList.map((b) =>
-          mapBookingToDetailView(b as Record<string, unknown>),
-        ),
-      );
+      setBookings(rawList.map((b) => mapBookingToDetailView(b as Record<string, unknown>)));
       await cacheTrip(resolvedId, { trip: tripData, bookings: rawList });
     } catch {
       if (!isOnline) {
@@ -72,8 +73,8 @@ export default function TripDetailScreen() {
           const rawList = Array.isArray(data.bookings) ? data.bookings : [];
           setBookings(rawList.map((b) => mapBookingToDetailView(b as Record<string, unknown>)));
           setError(null);
-        } else setError("Offline. No cached trip.");
-      } else setError("Failed to load trip. Please try again.");
+        } else setError('Offline. No cached trip.');
+      } else setError('Failed to load trip. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -93,7 +94,7 @@ export default function TripDetailScreen() {
       `💰 Budget: ${trip.currency} ${trip.totalBudget.toLocaleString()}`,
       `🔗 ${deepLink}`,
       SHARE_FOOTER,
-    ].join("\n");
+    ].join('\n');
     try {
       await Share.share({ message });
     } catch {
@@ -103,16 +104,18 @@ export default function TripDetailScreen() {
 
   if (!resolvedId) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.errorText}>Trip not found.</Text>
+      <View style={styles.notFound}>
+        <Text style={styles.notFoundText}>Trip not found.</Text>
       </View>
     );
   }
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color="#38bdf8" />
+      <View style={styles.centerContainer}>
+        <View style={styles.glowOrbTop} />
+        <View style={styles.glowOrbBottom} />
+        <ActivityIndicator size="large" color="#6366f1" />
         <Text style={styles.loadingText}>Loading trip...</Text>
       </View>
     );
@@ -120,164 +123,193 @@ export default function TripDetailScreen() {
 
   if (error || !trip) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <Text style={styles.errorText}>{error ?? "Trip not found."}</Text>
+      <View style={styles.centerContainer}>
+        <View style={styles.glowOrbTop} />
+        <View style={styles.glowOrbBottom} />
+        <Text style={styles.errorText}>{error ?? 'Trip not found.'}</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={loadData}>
           <Text style={styles.retryBtnText}>Retry</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 12 }}>
           <Text style={styles.backLink}>← Go Back</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
+  const statusColor = STATUS_COLORS[trip.status?.toUpperCase()] ?? '#94a3b8';
   const showQr = isQrPassAvailable(trip.status);
-  const isActive = trip.status.toUpperCase() === "ACTIVE";
+  const isActive = trip.status?.toUpperCase() === 'ACTIVE';
+  const datesFormatted = formatTripDateRange(trip.startDate, trip.endDate);
 
   return (
-    <ScrollView style={styles.container}>
-      <OfflineBanner visible={!isOnline} />
-      <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-        <Text style={styles.backText}>← Back</Text>
-      </TouchableOpacity>
-      <TripHeader trip={trip} />
-      <View style={styles.buttonRow}>
-        <TouchableOpacity
-          style={styles.budgetBtn}
-          onPress={() =>
-            router.push({
-              pathname: "/budget-breakdown",
-              params: { tripId: resolvedId },
-            })
-          }
-        >
-          <Text style={styles.budgetBtnText}>💰 Budget</Text>
-        </TouchableOpacity>
-        {isActive && (
-          <TouchableOpacity
-            style={styles.trackLiveBtn}
-            onPress={() =>
-              router.push({
-                pathname: "/active-trip",
-                params: { tripId: resolvedId },
-              })
-            }
-          >
-            <Text style={styles.trackLiveBtnText}>📍 Track Live</Text>
+    <View style={styles.screen}>
+      <View style={styles.glowOrbTop} />
+      <View style={styles.glowOrbBottom} />
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <OfflineBanner visible={!isOnline} />
+
+        <Animated.View style={{ opacity: fadeAnim }}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <Feather name="chevron-left" size={18} color="#6366f1" />
+            <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
-        )}
-        {showQr && (
+
+          <Text style={styles.eyebrow}>TRIP DETAILS</Text>
+          <Text style={styles.destination}>{trip.destination}</Text>
+
+          <View style={styles.headerMeta}>
+            <View style={styles.datePill}>
+              <Feather name="calendar" size={12} color="#9ca3af" />
+              <Text style={styles.datePillText}>{datesFormatted}</Text>
+            </View>
+            <View style={[styles.statusBadge, {
+              backgroundColor: `${statusColor}1a`,
+              borderColor: `${statusColor}66`,
+            }]}>
+              <Text style={[styles.statusText, { color: statusColor }]}>
+                {trip.status?.toUpperCase()}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.budgetRow}>
+            <Text style={styles.budgetLabel}>TOTAL BUDGET</Text>
+            <Text style={styles.budgetValue}>{trip.currency} {trip.totalBudget.toLocaleString()}</Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.actionRow}>
+            {showQr && (
+              <TouchableOpacity
+                style={styles.qrBtn}
+                onPress={() => router.push({ pathname: '/qr-pass', params: { tripId: resolvedId } })}
+              >
+                <Feather name="maximize" size={16} color="#ffffff" />
+                <Text style={styles.qrBtnText}>Show QR Pass</Text>
+              </TouchableOpacity>
+            )}
+            {isActive && (
+              <TouchableOpacity
+                style={styles.trackBtn}
+                onPress={() => router.push({ pathname: '/active-trip', params: { tripId: resolvedId } })}
+              >
+                <Feather name="navigation" size={16} color="#ffffff" />
+                <Text style={styles.trackBtnText}>Track Live</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
+              <Feather name="share-2" size={16} color="#9ca3af" />
+              <Text style={styles.shareBtnText}>Share</Text>
+            </TouchableOpacity>
+          </View>
+
           <TouchableOpacity
-            style={styles.qrBtn}
-            onPress={() =>
-              router.push({
-                pathname: "/qr-pass",
-                params: { tripId: resolvedId },
-              })
-            }
+            style={styles.budgetNavBtn}
+            onPress={() => router.push({ pathname: '/budget-breakdown', params: { tripId: resolvedId } })}
           >
-            <Text style={styles.qrBtnText}>🎫 Show QR Pass</Text>
+            <Feather name="pie-chart" size={16} color="#6366f1" />
+            <Text style={styles.budgetNavBtnText}>Budget Breakdown</Text>
           </TouchableOpacity>
-        )}
-        <TouchableOpacity
-          style={showQr || isActive ? styles.shareBtn : styles.shareBtnFull}
-          onPress={handleShare}
-        >
-          <Text style={styles.shareBtnText}>📤 Share Trip</Text>
-        </TouchableOpacity>
-      </View>
-      <Text style={styles.sectionTitle}>Your Bookings</Text>
-      {bookings.length === 0 ? (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyText}>
-            No bookings yet. Bookings will appear here once confirmed.
-          </Text>
-        </View>
-      ) : (
-        bookings.map((b, i) => <BookingCard key={b.id ?? i} booking={b} />)
-      )}
-      <View style={styles.spacer} />
-    </ScrollView>
+
+          <Text style={styles.sectionLabel}>YOUR BOOKINGS</Text>
+
+          {bookings.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Feather name="inbox" size={32} color="#4b5563" />
+              <Text style={styles.emptyText}>
+                No bookings yet. Bookings will appear here once confirmed.
+              </Text>
+            </View>
+          ) : (
+            bookings.map((b, i) => <BookingCard key={b.id ?? i} booking={b} />)
+          )}
+
+          <View style={{ height: 40 }} />
+        </Animated.View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0f172a", padding: 24 },
-  center: { justifyContent: "center", alignItems: "center" },
-  backButton: { marginTop: 60, marginBottom: 24 },
-  backText: { color: "#38bdf8", fontSize: 16 },
-  buttonRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 32,
-    flexWrap: "wrap",
+  screen: { flex: 1, backgroundColor: '#0d0d14' },
+  glowOrbTop: {
+    position: 'absolute', top: -100, right: -80,
+    width: 320, height: 320, borderRadius: 999,
+    backgroundColor: 'rgba(99,102,241,0.08)',
   },
-  budgetBtn: {
-    flex: 1,
-    minWidth: 100,
-    backgroundColor: theme.colors.card,
-    borderRadius: 12,
-    padding: 14,
-    alignItems: "center",
+  glowOrbBottom: {
+    position: 'absolute', bottom: -120, left: -80,
+    width: 280, height: 280, borderRadius: 999,
+    backgroundColor: 'rgba(99,102,241,0.06)',
   },
-  budgetBtnText: { color: theme.colors.primary, fontWeight: "bold", fontSize: 15 },
-  trackLiveBtn: {
-    flex: 1,
-    minWidth: 120,
-    backgroundColor: theme.colors.success,
-    borderRadius: 12,
-    padding: 14,
-    alignItems: "center",
+  scroll: { flex: 1 },
+  content: { paddingHorizontal: 24, paddingBottom: 60 },
+  centerContainer: {
+    flex: 1, backgroundColor: '#0d0d14',
+    justifyContent: 'center', alignItems: 'center', padding: 24,
   },
-  trackLiveBtnText: { color: "#0f172a", fontWeight: "bold", fontSize: 15 },
+  notFound: { flex: 1, backgroundColor: '#0d0d14', justifyContent: 'center', alignItems: 'center' },
+  notFoundText: { color: '#ffffff', fontSize: 18 },
+  loadingText: { color: '#9ca3af', marginTop: 16, fontSize: 14 },
+  errorText: { color: '#f87171', textAlign: 'center', marginBottom: 16 },
+  retryBtn: { backgroundColor: '#6366f1', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12, marginBottom: 12 },
+  retryBtnText: { color: '#ffffff', fontWeight: '700', fontSize: 16 },
+  backLink: { color: '#4b5563', fontSize: 14 },
+  backBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    marginTop: 48, marginBottom: 24, alignSelf: 'flex-start',
+  },
+  backText: { color: '#6366f1', fontSize: 15, fontWeight: '600' },
+  eyebrow: { fontSize: 10, color: '#4b5563', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 },
+  destination: { fontSize: 26, fontWeight: '700', color: '#ffffff', marginBottom: 16 },
+  headerMeta: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
+  datePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
+  },
+  datePillText: { color: '#9ca3af', fontSize: 13 },
+  statusBadge: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+  statusText: { fontSize: 13, fontWeight: '600' },
+  budgetRow: { marginBottom: 20 },
+  budgetLabel: { fontSize: 10, color: '#4b5563', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 },
+  budgetValue: { fontSize: 18, fontWeight: '700', color: '#ffffff' },
+  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginBottom: 20 },
+  actionRow: { flexDirection: 'row', gap: 10, marginBottom: 16, flexWrap: 'wrap' },
   qrBtn: {
-    flex: 1,
-    minWidth: 120,
-    backgroundColor: "#38bdf8",
-    borderRadius: 12,
-    padding: 14,
-    alignItems: "center",
+    flex: 1, height: 50, backgroundColor: '#6366f1',
+    borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
-  qrBtnText: { color: "#0f172a", fontWeight: "bold", fontSize: 15 },
+  qrBtnText: { color: '#ffffff', fontWeight: '700', fontSize: 14 },
+  trackBtn: {
+    flex: 1, height: 50, backgroundColor: '#22c55e',
+    borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  trackBtnText: { color: '#ffffff', fontWeight: '700', fontSize: 14 },
   shareBtn: {
-    flex: 1,
-    backgroundColor: "#1e293b",
-    borderRadius: 12,
-    padding: 14,
-    alignItems: "center",
+    flex: 1, height: 50, backgroundColor: '#13131f', borderRadius: 12,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
-  shareBtnFull: {
-    flex: 1,
-    backgroundColor: "#1e293b",
-    borderRadius: 12,
-    padding: 14,
-    alignItems: "center",
+  shareBtnText: { color: '#9ca3af', fontWeight: '600', fontSize: 14 },
+  budgetNavBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    height: 48, backgroundColor: '#13131f', borderRadius: 12,
+    borderWidth: 1, borderColor: 'rgba(99,102,241,0.2)', marginBottom: 28,
   },
-  shareBtnText: { color: "#fff", fontWeight: "bold", fontSize: 15 },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#fff",
-    marginBottom: 16,
-  },
+  budgetNavBtnText: { color: '#6366f1', fontWeight: '600', fontSize: 15 },
+  sectionLabel: { fontSize: 10, color: '#4b5563', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 16 },
   emptyCard: {
-    backgroundColor: "#1e293b",
-    borderRadius: 12,
-    padding: 20,
-    alignItems: "center",
+    backgroundColor: '#13131f', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 14, padding: 32, alignItems: 'center', gap: 12,
   },
-  emptyText: { color: "#94a3b8", textAlign: "center", fontSize: 14 },
-  spacer: { height: 40 },
-  loadingText: { color: "#94a3b8", marginTop: 12 },
-  errorText: { color: "#fca5a5", textAlign: "center", marginBottom: 16 },
-  retryBtn: {
-    backgroundColor: "#38bdf8",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  retryBtnText: { color: "#0f172a", fontWeight: "bold", fontSize: 16 },
-  backLink: { color: "#94a3b8", fontSize: 14 },
+  emptyText: { color: '#4b5563', fontSize: 14, textAlign: 'center', lineHeight: 22 },
 });
