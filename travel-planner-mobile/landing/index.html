@@ -1,0 +1,2364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TravelAI — Plan Smarter. Travel Further.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <style>
+    :root {
+      --bg: #0d0d14;
+      --card: #0f0f1a;
+      --card-border: rgba(255, 255, 255, 0.06);
+      --primary: #6366f1;
+      --primary-glow: rgba(99, 102, 241, 0.2);
+      --sky: #0ea5e9;
+      --white: #ffffff;
+      --muted: #9ca3af;
+      --subtle: #4b5563;
+      --reveal-ease: cubic-bezier(0.16, 1, 0.3, 1);
+      --nav-h: 64px;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      font-weight: 400;
+      background: var(--bg);
+      color: var(--white);
+      line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    button {
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+      background: none;
+    }
+
+    #bg-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    main,
+    .footer-wrap {
+      position: relative;
+      z-index: 1;
+    }
+
+    section {
+      position: relative;
+      z-index: 1;
+      background: transparent;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1120px;
+      margin-left: auto;
+      margin-right: auto;
+      padding-left: clamp(1rem, 4vw, 1.5rem);
+      padding-right: clamp(1rem, 4vw, 1.5rem);
+    }
+
+    /* Scroll reveal */
+    .reveal-section {
+      opacity: 0;
+      transform: translateY(40px);
+      transition: opacity 0.7s var(--reveal-ease), transform 0.7s var(--reveal-ease);
+    }
+
+    .reveal-section.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .feature-card {
+      opacity: 0;
+      transform: translateY(40px);
+      transition:
+        opacity 0.7s var(--reveal-ease),
+        transform 0.7s var(--reveal-ease),
+        border-color 0.25s ease,
+        box-shadow 0.25s ease;
+    }
+
+    .features-grid.is-visible .feature-card {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .features-grid.is-visible .feature-card:nth-child(1) { transition-delay: 0ms; }
+    .features-grid.is-visible .feature-card:nth-child(2) { transition-delay: 80ms; }
+    .features-grid.is-visible .feature-card:nth-child(3) { transition-delay: 160ms; }
+    .features-grid.is-visible .feature-card:nth-child(4) { transition-delay: 240ms; }
+    .features-grid.is-visible .feature-card:nth-child(5) { transition-delay: 320ms; }
+    .features-grid.is-visible .feature-card:nth-child(6) { transition-delay: 400ms; }
+
+    .feature-card:hover {
+      border-color: rgba(99, 102, 241, 0.4) !important;
+      box-shadow: 0 0 40px rgba(99, 102, 241, 0.08);
+      transform: translateY(-4px) !important;
+    }
+
+    .features-grid.is-visible .feature-card:hover {
+      transform: translateY(-4px) !important;
+    }
+
+    /* Navbar */
+    .nav-wrap {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      transition: background 0.25s ease, backdrop-filter 0.25s ease, border-color 0.25s ease;
+      border-bottom: 1px solid transparent;
+    }
+
+    .nav-wrap.scrolled {
+      background: rgba(13, 13, 20, 0.85);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-bottom-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .nav {
+      height: var(--nav-h);
+      max-width: 1120px;
+      margin: 0 auto;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 clamp(1rem, 4vw, 1.5rem);
+    }
+
+    .nav__brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--white);
+      letter-spacing: -0.5px;
+    }
+
+    .nav__brand i {
+      color: var(--primary);
+      font-size: 17px;
+    }
+
+    .nav__links {
+      display: flex;
+      align-items: center;
+      gap: 1.75rem;
+    }
+
+    .nav__links a:not(.nav__cta) {
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--muted);
+      transition: color 200ms ease;
+    }
+
+    .nav__links a:not(.nav__cta):hover {
+      color: var(--white);
+    }
+
+    .nav__cta {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 18px;
+      background: var(--primary);
+      color: var(--white) !important;
+      font-weight: 600;
+      font-size: 13px;
+      border-radius: 6px;
+      transition: filter 0.2s ease;
+    }
+
+    .nav__cta:hover {
+      filter: brightness(1.1);
+    }
+
+    .nav__toggle {
+      display: none;
+      width: 44px;
+      height: 44px;
+      align-items: center;
+      justify-content: center;
+      color: var(--white);
+      font-size: 1.15rem;
+      border-radius: 8px;
+      transition: background 0.2s ease;
+    }
+
+    .nav__toggle:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    @media (max-width: 900px) {
+      .nav__toggle {
+        display: flex;
+      }
+
+      .nav__links {
+        position: fixed;
+        top: var(--nav-h);
+        left: 0;
+        right: 0;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        padding: 1rem 1.25rem 1.25rem;
+        background: rgba(13, 13, 20, 0.96);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        transform: translateY(-120%);
+        opacity: 0;
+        visibility: hidden;
+        transition: transform 0.25s ease, opacity 0.25s ease, visibility 0.25s;
+      }
+
+      .nav__links.open {
+        transform: translateY(0);
+        opacity: 1;
+        visibility: visible;
+      }
+
+      .nav__links a {
+        padding: 0.85rem 1rem;
+        border-radius: 8px;
+      }
+
+      .nav__links a:not(.nav__cta):hover {
+        background: rgba(255, 255, 255, 0.05);
+      }
+
+      .nav__links .nav__cta {
+        margin-top: 0.5rem;
+        text-align: center;
+        justify-content: center;
+      }
+    }
+
+    /* Hero */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding-top: var(--nav-h);
+      padding-bottom: 3rem;
+      text-align: center;
+    }
+
+    .hero__content {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: center;
+      width: 100%;
+      min-height: calc(100vh - var(--nav-h));
+    }
+
+    .hero__content .hero__scroll {
+      margin-top: auto;
+      align-self: center;
+    }
+
+    .hero__grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 2.5rem;
+      align-items: center;
+      width: 100%;
+      flex: 1;
+    }
+
+    .hero__col--left {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .hero__col--right {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 520px;
+    }
+
+    @media (min-width: 769px) {
+      .hero {
+        text-align: left;
+      }
+
+      .hero__grid {
+        grid-template-columns: 55% 45%;
+        gap: clamp(1.5rem, 4vw, 3rem);
+        align-items: center;
+      }
+
+      .hero__col--left {
+        align-items: flex-start;
+        text-align: left;
+      }
+
+      .hero h1 {
+        max-width: none;
+      }
+
+      .hero__sub {
+        margin-left: 0;
+        margin-right: 0;
+      }
+
+      .hero__ctas {
+        justify-content: flex-start;
+      }
+
+      .hero__search-wrap {
+        max-width: 100%;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .hero__col--right {
+        min-height: auto;
+        order: 2;
+      }
+
+      .hero__col--left {
+        order: 1;
+      }
+
+      .hero__float-cards,
+      .hero__itinerary {
+        display: none !important;
+      }
+    }
+
+    .hero__eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.4rem 0.85rem;
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #a78bfa;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero h1 {
+      font-size: clamp(3rem, 6vw, 5.5rem);
+      font-weight: 700;
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+      max-width: 920px;
+    }
+
+    .hero__type-row {
+      display: inline;
+    }
+
+    .hero__type-cursor {
+      display: inline-block;
+      color: var(--primary);
+      font-weight: 700;
+      margin-left: 1px;
+      animation: heroCursorBlink 1s step-end infinite;
+    }
+
+    @keyframes heroCursorBlink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    .hero h1 .gradient {
+      background: linear-gradient(90deg, var(--primary) 0%, var(--sky) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      color: transparent;
+    }
+
+    .hero__sub {
+      margin-top: 1.35rem;
+      max-width: 520px;
+      margin-left: auto;
+      margin-right: auto;
+      font-size: 17px;
+      font-weight: 300;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .hero__search-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 520px;
+      margin-top: 1.5rem;
+    }
+
+    .hero__search-inner {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .hero__search-inner > i {
+      position: absolute;
+      left: 18px;
+      color: var(--primary);
+      font-size: 15px;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .hero__search-input {
+      width: 100%;
+      padding: 14px 20px 14px 48px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      color: var(--white);
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    .hero__search-input:focus {
+      border-color: rgba(99, 102, 241, 0.45);
+    }
+
+    .hero__search-input::placeholder {
+      color: #4b5563;
+    }
+
+    .hero__search-dropdown {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: calc(100% + 6px);
+      z-index: 50;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+      display: none;
+    }
+
+    .hero__search-dropdown.is-open {
+      display: block;
+    }
+
+    .hero__search-suggestion {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 12px 16px;
+      background: #0f0f1a;
+      border: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      color: var(--muted);
+      font-size: 14px;
+      font-family: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .hero__search-suggestion:last-child {
+      border-bottom: none;
+    }
+
+    .hero__search-suggestion i {
+      color: var(--primary);
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    .hero__search-suggestion:hover {
+      background: rgba(99, 102, 241, 0.1);
+      color: var(--white);
+    }
+
+    .hero__search-suggestion strong {
+      font-weight: 600;
+      color: inherit;
+    }
+
+    .hero__search-suggestion span {
+      font-weight: 400;
+      opacity: 0.85;
+    }
+
+    .hero__search-status {
+      margin-top: 12px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--muted);
+      max-width: 100%;
+    }
+
+    .hero__search-status.is-visible {
+      display: inline-flex;
+    }
+
+    .hero__search-status.is-success {
+      border-color: rgba(34, 197, 94, 0.35);
+      background: rgba(34, 197, 94, 0.1);
+      color: var(--white);
+    }
+
+    .hero__search-status i {
+      flex-shrink: 0;
+    }
+
+    .hero__search-status.is-success i {
+      color: #22c55e;
+    }
+
+    .hero__ctas {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      justify-content: center;
+      margin-top: 2rem;
+    }
+
+    .btn-primary-lg {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px 32px;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--white);
+      background: var(--primary);
+      border-radius: 8px;
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      box-shadow: 0 0 30px rgba(99, 102, 241, 0.4);
+    }
+
+    .btn-primary-lg:hover {
+      transform: scale(1.02);
+      box-shadow: 0 0 40px rgba(99, 102, 241, 0.55);
+    }
+
+    .btn-secondary-lg {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px 32px;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--white);
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      transition: border-color 0.25s ease, transform 0.25s ease;
+    }
+
+    .btn-secondary-lg:hover {
+      border-color: var(--white);
+    }
+
+    .hero__trust {
+      margin-top: 32px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 12px;
+      color: var(--subtle);
+    }
+
+    .hero__trust i {
+      color: #f59e0b;
+      font-size: 11px;
+    }
+
+    .hero__scroll {
+      padding-top: 2.5rem;
+      color: var(--subtle);
+      font-size: 14px;
+      animation: bounceChevron 2s ease-in-out infinite;
+    }
+
+    @keyframes bounceChevron {
+      0%, 100% { transform: translateY(0); opacity: 0.7; }
+      50% { transform: translateY(8px); opacity: 1; }
+    }
+
+    /* Hero visual column */
+    .hero__visual {
+      position: relative;
+      width: 100%;
+      max-width: 320px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding-bottom: 2rem;
+    }
+
+    .hero__float-cards {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .hero__float-card {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background: rgba(15, 15, 26, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+    }
+
+    .hero__float-card i {
+      color: var(--primary);
+      font-size: 13px;
+    }
+
+    .hero__float-card strong {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--white);
+    }
+
+    .hero__float-card em {
+      font-style: normal;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .hero__float-card--1 {
+      top: 4%;
+      right: -8%;
+      animation: heroFloat1 6s ease-in-out infinite alternate;
+    }
+
+    .hero__float-card--2 {
+      bottom: 28%;
+      left: -12%;
+      animation: heroFloat2 8s ease-in-out infinite alternate;
+    }
+
+    .hero__float-card--3 {
+      top: 38%;
+      right: -14%;
+      animation: heroFloat3 10s ease-in-out infinite alternate;
+    }
+
+    @keyframes heroFloat1 {
+      0% { transform: translate(0, 0); }
+      100% { transform: translate(-10px, 14px); }
+    }
+
+    @keyframes heroFloat2 {
+      0% { transform: translate(0, 0); }
+      100% { transform: translate(12px, -10px); }
+    }
+
+    @keyframes heroFloat3 {
+      0% { transform: translate(0, 0); }
+      100% { transform: translate(-14px, -12px); }
+    }
+
+    .hero__phone {
+      position: relative;
+      z-index: 2;
+      width: 260px;
+      height: 480px;
+      background: #1a1a2e;
+      border: 2px solid rgba(99, 102, 241, 0.3);
+      border-radius: 40px;
+      box-shadow: 0 0 60px rgba(99, 102, 241, 0.15);
+      flex-shrink: 0;
+      animation: heroPhoneFloat 4s ease-in-out infinite alternate;
+    }
+
+    @keyframes heroPhoneFloat {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-8px); }
+    }
+
+    .hero__phone-notch {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 72px;
+      height: 22px;
+      background: #0d0d14;
+      border-radius: 12px;
+      z-index: 4;
+    }
+
+    .hero__phone-screen {
+      margin: 8px;
+      margin-top: 36px;
+      height: calc(100% - 44px);
+      background: #0d0d14;
+      border-radius: 34px;
+      overflow: hidden;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .hero__phone-header {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 14px;
+    }
+
+    .hero__mini-card {
+      background: rgba(15, 15, 26, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .hero__mini-card-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--white);
+    }
+
+    .hero__mini-badge {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 3px 6px;
+      border-radius: 4px;
+      background: rgba(99, 102, 241, 0.2);
+      color: #a5b4fc;
+    }
+
+    .hero__mini-badge--green {
+      background: rgba(34, 197, 94, 0.15);
+      color: #4ade80;
+    }
+
+    .hero__mini-cta {
+      margin-top: auto;
+      padding: 10px;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--white);
+      background: var(--primary);
+      border-radius: 8px;
+    }
+
+    .hero__itinerary {
+      position: absolute;
+      z-index: 3;
+      left: 0;
+      bottom: 48px;
+      transform: translateX(-30px);
+      width: 220px;
+      padding: 16px;
+      background: rgba(15, 15, 26, 0.95);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 14px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .hero__itinerary-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      margin-bottom: 12px;
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .hero__itinerary-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--primary);
+      animation: heroPulseDot 1.2s ease-in-out infinite;
+    }
+
+    @keyframes heroPulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(0.85); }
+    }
+
+    .hero__itinerary-line {
+      font-size: 11px;
+      line-height: 1.45;
+      margin-bottom: 6px;
+      min-height: 15px;
+      color: var(--white);
+      opacity: 0;
+      transition: opacity 0.45s ease;
+    }
+
+    .hero__itinerary-line.is-visible {
+      opacity: 1;
+    }
+
+    .hero__itinerary-line--muted {
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .hero__itinerary-line--muted i {
+      color: #22c55e;
+      font-size: 10px;
+    }
+
+    .hero__itinerary-line--tw {
+      font-weight: 600;
+    }
+
+    /* Social strip */
+    .social-strip {
+      padding: 1.75rem 0;
+    }
+
+    .social-strip__inner {
+      background: rgba(15, 15, 26, 0.6);
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 1.5rem clamp(1rem, 3vw, 2rem);
+      text-align: center;
+    }
+
+    .social-strip__label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--subtle);
+      margin-bottom: 1rem;
+    }
+
+    .social-strip__logos {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 0.5rem 1.25rem;
+    }
+
+    .social-strip__logos span {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--subtle);
+      transition: color 0.2s ease;
+      cursor: default;
+    }
+
+    .social-strip__logos span:hover {
+      color: var(--muted);
+    }
+
+    .social-strip__sep {
+      color: rgba(75, 85, 99, 0.5);
+      font-weight: 400;
+      letter-spacing: 0;
+      font-size: 12px;
+    }
+
+    /* Features */
+    .section-features {
+      padding: clamp(4rem, 10vw, 6rem) 0;
+    }
+
+    .section-eyebrow {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-align: center;
+      margin-bottom: 0.75rem;
+    }
+
+    .section-title-lg {
+      font-size: 40px;
+      font-weight: 700;
+      color: var(--white);
+      text-align: center;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      margin-bottom: 3rem;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 900px) {
+      .features-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 560px) {
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .feature-card {
+      background: rgba(15, 15, 26, 0.8);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 32px;
+    }
+
+    .feature-card__icon {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(99, 102, 241, 0.1);
+      border-radius: 10px;
+      color: var(--primary);
+      font-size: 20px;
+    }
+
+    .feature-card h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--white);
+      margin-top: 20px;
+    }
+
+    .feature-card p {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-top: 0.5rem;
+    }
+
+    /* How it works */
+    .section-how {
+      padding: clamp(4rem, 10vw, 6rem) 0;
+    }
+
+    .how-title {
+      font-size: clamp(1.75rem, 4vw, 2.25rem);
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 3rem;
+      letter-spacing: -0.02em;
+    }
+
+    .how-steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0;
+      align-items: start;
+      position: relative;
+    }
+
+    @media (max-width: 768px) {
+      .how-steps {
+        grid-template-columns: 1fr;
+        gap: 2.5rem;
+      }
+    }
+
+    .how-step {
+      text-align: center;
+      padding: 0 1rem;
+      position: relative;
+    }
+
+    .how-step__num {
+      font-size: 80px;
+      font-weight: 700;
+      line-height: 1;
+      background: linear-gradient(90deg, var(--primary) 0%, var(--sky) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      opacity: 0.4;
+    }
+
+    .how-step__icon {
+      margin-top: 0.5rem;
+      font-size: 24px;
+      color: var(--primary);
+    }
+
+    .how-step h3 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--white);
+      margin-top: 1rem;
+    }
+
+    .how-step p {
+      font-size: 14px;
+      color: var(--muted);
+      margin-top: 0.5rem;
+      max-width: 280px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .how-connector {
+      display: none;
+    }
+
+    @media (min-width: 769px) {
+      .how-connector {
+        display: block;
+        position: absolute;
+        top: 48px;
+        left: 12%;
+        right: 12%;
+        height: 0;
+        border-top: 1px dashed rgba(99, 102, 241, 0.2);
+        pointer-events: none;
+        z-index: 0;
+      }
+    }
+
+    /* Stats */
+    .section-stats {
+      padding: clamp(3rem, 8vw, 5rem) 0;
+    }
+
+    .stats-card {
+      background: rgba(15, 15, 26, 0.8);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: clamp(2rem, 5vw, 3rem) 0;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      align-items: center;
+    }
+
+    .stat-item {
+      text-align: center;
+      position: relative;
+      padding: 0 1rem;
+    }
+
+    .stat-item:not(:first-child)::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 1px;
+      height: 48px;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    @media (max-width: 768px) {
+      .stats-card {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 2rem 0;
+      }
+
+      .stat-item:nth-child(3)::before {
+        display: none;
+      }
+
+      .stat-item:nth-child(odd):not(:first-child)::before {
+        display: block;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .stats-card {
+        grid-template-columns: 1fr;
+      }
+
+      .stat-item:not(:first-child)::before {
+        display: none;
+      }
+
+      .stat-item {
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        padding-top: 1.5rem;
+      }
+
+      .stat-item:first-child {
+        border-top: none;
+        padding-top: 0;
+      }
+    }
+
+    .stat__value {
+      font-size: 48px;
+      font-weight: 700;
+      color: var(--white);
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+    }
+
+    .stat__value .fa-star {
+      font-size: 0.55em;
+      vertical-align: 0.1em;
+      color: #f59e0b;
+    }
+
+    .stat__label {
+      margin-top: 0.35rem;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--subtle);
+    }
+
+    /* Testimonials */
+    .section-testimonials {
+      padding: clamp(4rem, 10vw, 6rem) 0;
+    }
+
+    .testimonial-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 900px) {
+      .testimonial-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .testimonial-card {
+      background: rgba(15, 15, 26, 0.8);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+    }
+
+    .testimonial-card:hover {
+      border-color: rgba(99, 102, 241, 0.4);
+      box-shadow: 0 0 40px rgba(99, 102, 241, 0.08);
+      transform: translateY(-4px);
+    }
+
+    .testimonial-card__stars {
+      color: #f59e0b;
+      font-size: 13px;
+      letter-spacing: 2px;
+      margin-bottom: 1rem;
+    }
+
+    .testimonial-card__quote {
+      font-size: 14px;
+      font-style: italic;
+      color: var(--muted);
+      line-height: 1.7;
+      flex: 1;
+    }
+
+    .testimonial-card__footer {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 1.25rem;
+    }
+
+    .testimonial-card__avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--white);
+      flex-shrink: 0;
+    }
+
+    .testimonial-card__meta {
+      text-align: left;
+    }
+
+    .testimonial-card__name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--white);
+    }
+
+    .testimonial-card__trip {
+      font-size: 12px;
+      color: var(--subtle);
+      margin-top: 0.15rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .testimonial-card__trip i {
+      font-size: 11px;
+      color: var(--subtle);
+    }
+
+    /* Download */
+    .section-download {
+      padding: clamp(5rem, 12vw, 8rem) 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .section-download::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 800px;
+      height: 800px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.06) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .section-download .container {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+    }
+
+    .download__eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+
+    .download__title {
+      font-size: 48px;
+      font-weight: 700;
+      color: var(--white);
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+    }
+
+    .download__sub {
+      margin-top: 0.75rem;
+      font-size: 17px;
+      color: var(--muted);
+      font-weight: 400;
+    }
+
+    .download__stores {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      justify-content: center;
+      margin-top: 2rem;
+    }
+
+    .store-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 14px 28px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      color: var(--white);
+      font-size: 15px;
+      font-weight: 600;
+      transition: border-color 0.25s ease;
+    }
+
+    .store-btn i {
+      font-size: 22px;
+    }
+
+    .store-btn:hover {
+      border-color: var(--white);
+    }
+
+    .download__fine {
+      margin-top: 1.5rem;
+      font-size: 12px;
+      color: var(--subtle);
+    }
+
+    /* Footer */
+    .footer-wrap {
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(13, 13, 20, 0.9);
+      padding: 2.5rem 0;
+    }
+
+    .footer__grid {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: start;
+      gap: 2rem;
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 0 clamp(1rem, 4vw, 1.5rem);
+    }
+
+    .footer__brand {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .footer__brand-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--white);
+    }
+
+    .footer__brand-row i {
+      color: var(--primary);
+    }
+
+    .footer__tagline {
+      font-size: 12px;
+      color: var(--subtle);
+      max-width: 220px;
+      line-height: 1.5;
+    }
+
+    .footer__links {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1.5rem;
+      align-self: center;
+    }
+
+    .footer__links a {
+      font-size: 13px;
+      color: var(--subtle);
+      transition: color 0.2s ease;
+    }
+
+    .footer__links a:hover {
+      color: var(--muted);
+    }
+
+    .footer__copy {
+      text-align: right;
+      font-size: 12px;
+      color: var(--subtle);
+      align-self: center;
+    }
+
+    @media (max-width: 768px) {
+      .footer__grid {
+        grid-template-columns: 1fr;
+        text-align: center;
+      }
+
+      .footer__brand {
+        align-items: center;
+      }
+
+      .footer__tagline {
+        max-width: none;
+      }
+
+      .footer__copy {
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="bg-canvas" aria-hidden="true"></canvas>
+
+  <div class="nav-wrap" id="navWrap">
+    <header class="nav" role="banner">
+      <a href="#" class="nav__brand">
+        <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
+        TravelAI
+      </a>
+      <button type="button" class="nav__toggle" id="navToggle" aria-label="Open menu" aria-expanded="false">
+        <i class="fa-solid fa-bars" id="navToggleIcon"></i>
+      </button>
+      <nav class="nav__links" id="navLinks" aria-label="Primary">
+        <a href="#features">Features</a>
+        <a href="#how">How It Works</a>
+        <a href="#reviews">Reviews</a>
+        <a href="#download">Download</a>
+        <a href="#download" class="nav__cta">Get Started</a>
+      </nav>
+    </header>
+  </div>
+
+  <main>
+    <section class="hero reveal-section" id="top" aria-label="Hero">
+      <div class="container hero__content">
+        <div class="hero__grid">
+          <div class="hero__col hero__col--left">
+            <span class="hero__eyebrow">
+              <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
+              AI-Powered Trip Planning
+            </span>
+            <h1>
+              <span class="hero__type-row">
+                <span id="heroTypeText" class="hero__type-text"></span><span class="hero__type-cursor" aria-hidden="true">|</span>
+              </span><br />
+              Travel <span class="gradient">Further.</span>
+            </h1>
+            <p class="hero__sub">
+              AI generates your complete itinerary in seconds.
+              Flights, hotels, activities and budget — all in one place.
+            </p>
+            <div class="hero__search-wrap">
+              <div class="hero__search-inner">
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                <input
+                  type="text"
+                  id="heroSearchInput"
+                  class="hero__search-input"
+                  placeholder="Where do you want to go?"
+                  autocomplete="off"
+                  aria-label="Search destination"
+                  aria-expanded="false"
+                  aria-controls="heroSearchDropdown"
+                />
+              </div>
+              <div id="heroSearchDropdown" class="hero__search-dropdown" role="listbox" aria-label="Destination suggestions"></div>
+              <div id="heroSearchStatus" class="hero__search-status" role="status" aria-live="polite"></div>
+            </div>
+            <div class="hero__ctas">
+              <a href="#download" class="btn-primary-lg">Start Planning</a>
+              <a href="#features" class="btn-secondary-lg">See Features</a>
+            </div>
+            <p class="hero__trust">
+              <i class="fa-solid fa-star" aria-hidden="true"></i>
+              4.9 · 10,000+ trips · Free forever
+            </p>
+          </div>
+          <div class="hero__col hero__col--right">
+            <div class="hero__visual">
+              <div class="hero__float-cards" aria-hidden="true">
+                <div class="hero__float-card hero__float-card--1">
+                  <i class="fa-solid fa-location-dot"></i>
+                  <div>
+                    <strong>Paris</strong>
+                    <em> · $2,400</em>
+                  </div>
+                </div>
+                <div class="hero__float-card hero__float-card--2">
+                  <i class="fa-solid fa-location-dot"></i>
+                  <div>
+                    <strong>Tokyo</strong>
+                    <em> · $3,100</em>
+                  </div>
+                </div>
+                <div class="hero__float-card hero__float-card--3">
+                  <i class="fa-solid fa-location-dot"></i>
+                  <div>
+                    <strong>Bali</strong>
+                    <em> · $1,800</em>
+                  </div>
+                </div>
+              </div>
+              <div class="hero__phone" aria-hidden="true">
+                <div class="hero__phone-notch"></div>
+                <div class="hero__phone-screen">
+                  <div class="hero__phone-header">My Trips</div>
+                  <div class="hero__mini-card">
+                    <span class="hero__mini-card-title">Paris</span>
+                    <span class="hero__mini-badge">Live</span>
+                  </div>
+                  <div class="hero__mini-card">
+                    <span class="hero__mini-card-title">Bali</span>
+                    <span class="hero__mini-badge hero__mini-badge--green">Booked</span>
+                  </div>
+                  <div class="hero__mini-cta">Plan New Trip</div>
+                </div>
+              </div>
+              <div class="hero__itinerary" id="heroItineraryCard" aria-hidden="true">
+                <div class="hero__itinerary-pill">
+                  <span class="hero__itinerary-dot"></span>
+                  AI generating...
+                </div>
+                <div id="heroItineraryLines"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="hero__scroll" aria-hidden="true">
+          <i class="fa-solid fa-chevron-down"></i>
+        </div>
+      </div>
+    </section>
+
+    <section class="social-strip reveal-section" id="social" aria-label="Featured in">
+      <div class="social-strip__inner">
+        <p class="social-strip__label">FEATURED IN</p>
+        <div class="social-strip__logos">
+          <span>TechCrunch</span>
+          <span class="social-strip__sep" aria-hidden="true">·</span>
+          <span>Forbes</span>
+          <span class="social-strip__sep" aria-hidden="true">·</span>
+          <span>Condé Nast</span>
+          <span class="social-strip__sep" aria-hidden="true">·</span>
+          <span>Lonely Planet</span>
+          <span class="social-strip__sep" aria-hidden="true">·</span>
+          <span>Skift</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-features reveal-section" id="features" aria-labelledby="features-title">
+      <div class="container">
+        <p class="section-eyebrow">FEATURES</p>
+        <h2 class="section-title-lg" id="features-title">Built for how you travel</h2>
+        <div class="features-grid" id="featuresGrid">
+          <article class="feature-card">
+            <div class="feature-card__icon"><i class="fa-solid fa-route" aria-hidden="true"></i></div>
+            <h3>AI Itinerary</h3>
+            <p>Complete trip plan generated in under 2 minutes</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-card__icon"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i></div>
+            <h3>Day-by-Day</h3>
+            <p>Detailed schedule with costs for every day</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-card__icon"><i class="fa-solid fa-wallet" aria-hidden="true"></i></div>
+            <h3>Budget Tracker</h3>
+            <p>Real-time breakdown across all categories</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-card__icon"><i class="fa-solid fa-qrcode" aria-hidden="true"></i></div>
+            <h3>QR Pass</h3>
+            <p>One secure pass for all your bookings</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-card__icon"><i class="fa-solid fa-bell" aria-hidden="true"></i></div>
+            <h3>Smart Alerts</h3>
+            <p>Reminders for flights, check-ins and more</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-card__icon"><i class="fa-solid fa-globe" aria-hidden="true"></i></div>
+            <h3>50+ Countries</h3>
+            <p>Optimized for destinations worldwide</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-how reveal-section" id="how" aria-labelledby="how-title">
+      <div class="container">
+        <h2 class="how-title" id="how-title">Three steps to your perfect trip</h2>
+        <div class="how-steps">
+          <span class="how-connector" aria-hidden="true"></span>
+          <div class="how-step">
+            <div class="how-step__num">1</div>
+            <div class="how-step__icon"><i class="fa-solid fa-map-location-dot" aria-hidden="true"></i></div>
+            <h3>Set Your Destination</h3>
+            <p>Choose where, when and how much you want to spend</p>
+          </div>
+          <div class="how-step">
+            <div class="how-step__num">2</div>
+            <div class="how-step__icon"><i class="fa-solid fa-robot" aria-hidden="true"></i></div>
+            <h3>AI Plans Everything</h3>
+            <p>Flights, hotels and activities optimized just for you</p>
+          </div>
+          <div class="how-step">
+            <div class="how-step__num">3</div>
+            <div class="how-step__icon"><i class="fa-solid fa-passport" aria-hidden="true"></i></div>
+            <h3>Travel with Confidence</h3>
+            <p>QR pass, offline access and smart reminders included</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-stats reveal-section" id="stats" aria-label="Statistics">
+      <div class="container">
+        <div class="stats-card" id="statsCard">
+          <div class="stat-item">
+            <div class="stat__value js-stat" data-target="10000" data-suffix="+" data-format="int">0+</div>
+            <div class="stat__label">Trips Planned</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat__value js-stat" data-target="50" data-suffix="+" data-format="int">0+</div>
+            <div class="stat__label">Countries</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat__value"><span class="js-stat" data-target="4.9" data-format="rating">0</span><i class="fa-solid fa-star" aria-hidden="true"></i></div>
+            <div class="stat__label">Average Rating</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat__value js-stat" data-target="2" data-suffix=" min" data-format="int">0 min</div>
+            <div class="stat__label">Planning Time</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-testimonials reveal-section" id="reviews" aria-labelledby="reviews-title">
+      <div class="container">
+        <h2 class="section-title-lg" id="reviews-title">Loved by travelers worldwide</h2>
+        <div class="testimonial-grid">
+          <article class="testimonial-card">
+            <div class="testimonial-card__stars" aria-hidden="true">
+              <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+            </div>
+            <p class="testimonial-card__quote">
+              "Planned our entire 2-week Japan trip in 3 minutes. The AI knew exactly what we wanted. Absolutely incredible."
+            </p>
+            <div class="testimonial-card__footer">
+              <div class="testimonial-card__avatar" aria-hidden="true">SM</div>
+              <div class="testimonial-card__meta">
+                <div class="testimonial-card__name">Sarah M.</div>
+                <div class="testimonial-card__trip">
+                  <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+                  Tokyo, Japan
+                </div>
+              </div>
+            </div>
+          </article>
+          <article class="testimonial-card">
+            <div class="testimonial-card__stars" aria-hidden="true">
+              <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+            </div>
+            <p class="testimonial-card__quote">
+              "The QR pass feature is genius. One scan for check-in, hotel and tours. Never lost a booking confirmation again."
+            </p>
+            <div class="testimonial-card__footer">
+              <div class="testimonial-card__avatar" aria-hidden="true">JK</div>
+              <div class="testimonial-card__meta">
+                <div class="testimonial-card__name">James K.</div>
+                <div class="testimonial-card__trip">
+                  <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+                  Bali, Indonesia
+                </div>
+              </div>
+            </div>
+          </article>
+          <article class="testimonial-card">
+            <div class="testimonial-card__stars" aria-hidden="true">
+              <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+            </div>
+            <p class="testimonial-card__quote">
+              "Budget tracking kept us from overspending on day 3. Literally saved our Paris trip."
+            </p>
+            <div class="testimonial-card__footer">
+              <div class="testimonial-card__avatar" aria-hidden="true">AT</div>
+              <div class="testimonial-card__meta">
+                <div class="testimonial-card__name">Amira T.</div>
+                <div class="testimonial-card__trip">
+                  <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+                  Paris, France
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-download reveal-section" id="download" aria-labelledby="download-title">
+      <div class="container">
+        <div class="download__eyebrow">
+          <i class="fa-solid fa-mobile-screen" aria-hidden="true"></i>
+          AVAILABLE NOW
+        </div>
+        <h2 class="download__title" id="download-title">Your next adventure starts here</h2>
+        <p class="download__sub">Free on iOS and Android. No credit card required.</p>
+        <div class="download__stores">
+          <a href="#" class="store-btn" aria-label="Download on the App Store">
+            <i class="fa-brands fa-apple" aria-hidden="true"></i>
+            App Store
+          </a>
+          <a href="#" class="store-btn" aria-label="Get it on Google Play">
+            <i class="fa-brands fa-google-play" aria-hidden="true"></i>
+            Google Play
+          </a>
+        </div>
+        <p class="download__fine">No credit card required · Cancel anytime</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer-wrap reveal-section" id="footer">
+    <div class="footer__grid">
+      <div class="footer__brand">
+        <div class="footer__brand-row">
+          <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
+          TravelAI
+        </div>
+        <p class="footer__tagline">Intelligent itineraries for travelers who move fast.</p>
+      </div>
+      <nav class="footer__links" aria-label="Footer">
+        <a href="#features">Features</a>
+        <a href="#">Privacy</a>
+        <a href="#">Terms</a>
+        <a href="#">Contact</a>
+      </nav>
+      <p class="footer__copy">&copy; 2026 TravelAI · All rights reserved</p>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      /* --- Canvas particle network --- */
+      var canvas = document.getElementById("bg-canvas");
+      var ctx = null;
+      var W = 0;
+      var H = 0;
+      var mouse = { x: -1e9, y: -1e9 };
+      var PARTICLE_COUNT = 120;
+      var LINK_DIST = 140;
+      var MOUSE_DIST = 100;
+      var REPEL = 0.35;
+      var particles = [];
+
+      function resize() {
+        if (!canvas || !ctx) return;
+        W = window.innerWidth;
+        H = window.innerHeight;
+        canvas.width = W * window.devicePixelRatio;
+        canvas.height = H * window.devicePixelRatio;
+        ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+      }
+
+      function rand(min, max) {
+        return min + Math.random() * (max - min);
+      }
+
+      function inHeroGlow(px, py) {
+        var hx = W * 0.5;
+        var hy = H * 0.32;
+        var rx = W * 0.38;
+        var ry = H * 0.28;
+        var dx = (px - hx) / rx;
+        var dy = (py - hy) / ry;
+        return dx * dx + dy * dy < 1;
+      }
+
+      function initParticles() {
+        particles = [];
+        for (var i = 0; i < PARTICLE_COUNT; i++) {
+          var ang = Math.random() * Math.PI * 2;
+          var sp = rand(0.15, 0.45);
+          particles.push({
+            x: Math.random() * W,
+            y: Math.random() * H,
+            vx: Math.cos(ang) * sp,
+            vy: Math.sin(ang) * sp,
+            r: rand(1.5, 2.5),
+            o: rand(0.3, 0.6),
+          });
+        }
+      }
+
+      function tick() {
+        if (!ctx) return;
+        var i, j, p, q, dx, dy, d, f;
+
+        for (i = 0; i < particles.length; i++) {
+          p = particles[i];
+          dx = p.x - mouse.x;
+          dy = p.y - mouse.y;
+          d = Math.sqrt(dx * dx + dy * dy);
+          if (d < MOUSE_DIST && d > 0.001) {
+            f = (MOUSE_DIST - d) / MOUSE_DIST * REPEL;
+            p.x += (dx / d) * f * 2.2;
+            p.y += (dy / d) * f * 2.2;
+          }
+
+          p.x += p.vx;
+          p.y += p.vy;
+
+          if (p.x < p.r) {
+            p.x = p.r;
+            p.vx *= -1;
+          } else if (p.x > W - p.r) {
+            p.x = W - p.r;
+            p.vx *= -1;
+          }
+          if (p.y < p.r) {
+            p.y = p.r;
+            p.vy *= -1;
+          } else if (p.y > H - p.r) {
+            p.y = H - p.r;
+            p.vy *= -1;
+          }
+        }
+
+        ctx.clearRect(0, 0, W, H);
+
+        for (i = 0; i < particles.length; i++) {
+          for (j = i + 1; j < particles.length; j++) {
+            p = particles[i];
+            q = particles[j];
+            dx = p.x - q.x;
+            dy = p.y - q.y;
+            d = Math.sqrt(dx * dx + dy * dy);
+            if (d < LINK_DIST) {
+              ctx.strokeStyle = "rgba(99,102,241," + (0.15 * (1 - d / LINK_DIST)) + ")";
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.moveTo(p.x, p.y);
+              ctx.lineTo(q.x, q.y);
+              ctx.stroke();
+            }
+          }
+        }
+
+        for (i = 0; i < particles.length; i++) {
+          p = particles[i];
+          var glow = inHeroGlow(p.x, p.y);
+          ctx.save();
+          if (glow) {
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = "#6366f1";
+          }
+          ctx.fillStyle = "rgba(255,255,255," + p.o + ")";
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        requestAnimationFrame(tick);
+      }
+
+      if (canvas) {
+        ctx = canvas.getContext("2d");
+        window.addEventListener(
+          "mousemove",
+          function (e) {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+          },
+          { passive: true }
+        );
+
+        window.addEventListener(
+          "mouseleave",
+          function () {
+            mouse.x = -1e9;
+            mouse.y = -1e9;
+          },
+          { passive: true }
+        );
+
+        window.addEventListener("resize", function () {
+          resize();
+          initParticles();
+        });
+
+        resize();
+        initParticles();
+        requestAnimationFrame(tick);
+      }
+
+      /* --- Nav --- */
+      var navWrap = document.getElementById("navWrap");
+      var navLinks = document.getElementById("navLinks");
+      var navToggle = document.getElementById("navToggle");
+      var navToggleIcon = document.getElementById("navToggleIcon");
+
+      function onScrollNav() {
+        if (!navWrap) return;
+        if (window.scrollY > 60) {
+          navWrap.classList.add("scrolled");
+        } else {
+          navWrap.classList.remove("scrolled");
+        }
+      }
+
+      window.addEventListener("scroll", onScrollNav, { passive: true });
+      onScrollNav();
+
+      function closeMenu() {
+        if (!navLinks || !navToggle) return;
+        navLinks.classList.remove("open");
+        navToggle.setAttribute("aria-expanded", "false");
+        navToggle.setAttribute("aria-label", "Open menu");
+        if (navToggleIcon) navToggleIcon.className = "fa-solid fa-bars";
+      }
+
+      if (navToggle && navLinks) {
+        navToggle.addEventListener("click", function () {
+          var open = navLinks.classList.toggle("open");
+          navToggle.setAttribute("aria-expanded", open ? "true" : "false");
+          navToggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+          if (navToggleIcon) {
+            navToggleIcon.className = open ? "fa-solid fa-xmark" : "fa-solid fa-bars";
+          }
+        });
+
+        navLinks.querySelectorAll("a").forEach(function (link) {
+          link.addEventListener("click", function () {
+            if (window.matchMedia("(max-width: 900px)").matches) {
+              closeMenu();
+            }
+          });
+        });
+      }
+
+      var navOffset = 64;
+      document.querySelectorAll('a[href^="#"]').forEach(function (anchor) {
+        anchor.addEventListener("click", function (e) {
+          var id = anchor.getAttribute("href");
+          if (!id || id === "#") return;
+          var el = document.querySelector(id);
+          if (el) {
+            e.preventDefault();
+            var top = el.getBoundingClientRect().top + window.scrollY - navOffset;
+            window.scrollTo({ top: top, behavior: "smooth" });
+          }
+        });
+      });
+
+      /* --- IntersectionObserver reveal --- */
+      var revealEls = document.querySelectorAll(".reveal-section");
+      var ioReveal = new IntersectionObserver(
+        function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("is-visible");
+            }
+          });
+        },
+        { root: null, rootMargin: "0px 0px -8% 0px", threshold: 0.05 }
+      );
+
+      revealEls.forEach(function (el) {
+        ioReveal.observe(el);
+      });
+
+      var featuresGrid = document.getElementById("featuresGrid");
+      if (featuresGrid) {
+        var ioFeatures = new IntersectionObserver(
+          function (entries) {
+            entries.forEach(function (entry) {
+              if (entry.isIntersecting) {
+                entry.target.classList.add("is-visible");
+              }
+            });
+          },
+          { threshold: 0.12 }
+        );
+        ioFeatures.observe(featuresGrid);
+      }
+
+      /* --- Stats count-up --- */
+      var statsSection = document.getElementById("statsCard");
+      var counted = false;
+
+      function runCountUp() {
+        if (counted || !statsSection) return;
+        counted = true;
+        var statNodes = statsSection.querySelectorAll(".js-stat");
+        var duration = 1800;
+        var start = performance.now();
+
+        var items = [];
+        statNodes.forEach(function (el) {
+          var fmt = el.getAttribute("data-format");
+          var target = parseFloat(el.getAttribute("data-target"));
+          var suffix = el.getAttribute("data-suffix") || "";
+          items.push({ el: el, fmt: fmt, target: target, suffix: suffix });
+        });
+
+        function easeOutCubic(t) {
+          return 1 - Math.pow(1 - t, 3);
+        }
+
+        function frame(now) {
+          var t = Math.min(1, (now - start) / duration);
+          var e = easeOutCubic(t);
+          items.forEach(function (item) {
+            var v = item.target * e;
+            if (item.fmt === "int") {
+              item.el.textContent = Math.round(v).toLocaleString() + item.suffix;
+            } else if (item.fmt === "rating") {
+              item.el.textContent = v.toFixed(1);
+            }
+          });
+          if (t < 1) {
+            requestAnimationFrame(frame);
+          } else {
+            items.forEach(function (item) {
+              if (item.fmt === "int") {
+                item.el.textContent =
+                  Math.round(item.target).toLocaleString() + item.suffix;
+              } else if (item.fmt === "rating") {
+                item.el.textContent = item.target.toFixed(1);
+              }
+            });
+          }
+        }
+
+        requestAnimationFrame(frame);
+      }
+
+      if (statsSection) {
+        var statsObs = new IntersectionObserver(
+          function (entries) {
+            entries.forEach(function (entry) {
+              if (entry.isIntersecting) {
+                runCountUp();
+                statsObs.disconnect();
+              }
+            });
+          },
+          { threshold: 0.25 }
+        );
+        statsObs.observe(statsSection);
+      }
+
+      /* --- Hero: typewriter, search, itinerary card --- */
+      (function heroEnhancements() {
+        var typeEl = document.getElementById("heroTypeText");
+        var phrases = ["Plan Smarter.", "Travel Smarter.", "Book Smarter."];
+        var phraseIndex = 0;
+        var charIndex = 0;
+        var deleting = false;
+        var typeMs = 80;
+        var deleteMs = 40;
+        var pauseFullMs = 900;
+
+        function runTypewriter() {
+          if (!typeEl) return;
+          var phrase = phrases[phraseIndex];
+          if (!deleting) {
+            if (charIndex < phrase.length) {
+              charIndex += 1;
+              typeEl.textContent = phrase.slice(0, charIndex);
+              setTimeout(runTypewriter, typeMs);
+            } else {
+              setTimeout(function () {
+                deleting = true;
+                runTypewriter();
+              }, pauseFullMs);
+            }
+          } else {
+            if (charIndex > 0) {
+              charIndex -= 1;
+              typeEl.textContent = phrase.slice(0, charIndex);
+              setTimeout(runTypewriter, deleteMs);
+            } else {
+              deleting = false;
+              phraseIndex = (phraseIndex + 1) % phrases.length;
+              setTimeout(runTypewriter, typeMs);
+            }
+          }
+        }
+
+        setTimeout(function () {
+          runTypewriter();
+        }, 1000);
+
+        var destinations = [
+          { city: "Paris", country: "France" },
+          { city: "Tokyo", country: "Japan" },
+          { city: "Bali", country: "Indonesia" },
+          { city: "New York", country: "USA" },
+          { city: "Safari", country: "Kenya" },
+          { city: "Barcelona", country: "Spain" },
+          { city: "Dubai", country: "UAE" },
+          { city: "Santorini", country: "Greece" },
+        ];
+
+        var searchInput = document.getElementById("heroSearchInput");
+        var searchDropdown = document.getElementById("heroSearchDropdown");
+        var searchStatus = document.getElementById("heroSearchStatus");
+        var statusTimer = null;
+
+        function filterDestinations(q) {
+          var s = (q || "").trim().toLowerCase();
+          if (!s) return destinations.slice();
+          return destinations.filter(function (d) {
+            return (
+              d.city.toLowerCase().indexOf(s) !== -1 ||
+              d.country.toLowerCase().indexOf(s) !== -1 ||
+              (d.city + " " + d.country).toLowerCase().indexOf(s) !== -1
+            );
+          });
+        }
+
+        function renderDropdown(list) {
+          if (!searchDropdown) return;
+          searchDropdown.innerHTML = "";
+          list.forEach(function (d) {
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "hero__search-suggestion";
+            btn.setAttribute("role", "option");
+            btn.innerHTML =
+              '<i class="fa-solid fa-location-dot" aria-hidden="true"></i><span><strong>' +
+              d.city +
+              "</strong>, " +
+              d.country +
+              "</span>";
+            btn.addEventListener("mousedown", function (e) {
+              e.preventDefault();
+            });
+            btn.addEventListener("click", function () {
+              selectDestination(d);
+            });
+            searchDropdown.appendChild(btn);
+          });
+        }
+
+        function openDropdown() {
+          if (!searchDropdown || !searchInput) return;
+          var list = filterDestinations(searchInput.value);
+          if (!list.length) {
+            searchDropdown.classList.remove("is-open");
+            searchInput.setAttribute("aria-expanded", "false");
+            return;
+          }
+          renderDropdown(list);
+          searchDropdown.classList.add("is-open");
+          searchInput.setAttribute("aria-expanded", "true");
+        }
+
+        function closeDropdown() {
+          if (!searchDropdown || !searchInput) return;
+          searchDropdown.classList.remove("is-open");
+          searchInput.setAttribute("aria-expanded", "false");
+        }
+
+        function selectDestination(d) {
+          if (!searchInput || !searchStatus) return;
+          if (statusTimer) {
+            clearTimeout(statusTimer);
+            statusTimer = null;
+          }
+          var label = d.city + ", " + d.country;
+          searchInput.value = label;
+          closeDropdown();
+          searchStatus.classList.remove("is-success");
+          searchStatus.classList.add("is-visible");
+          searchStatus.innerHTML =
+            '<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Generating itinerary for ' +
+            d.city +
+            "...";
+          statusTimer = setTimeout(function () {
+            searchStatus.classList.add("is-success");
+            searchStatus.innerHTML =
+              '<i class="fa-solid fa-circle-check" aria-hidden="true"></i> Itinerary ready! 3 days · $1,240';
+            statusTimer = null;
+          }, 2000);
+        }
+
+        if (searchInput && searchDropdown) {
+          searchInput.addEventListener("focus", function () {
+            openDropdown();
+          });
+          searchInput.addEventListener("input", function () {
+            openDropdown();
+          });
+          searchInput.addEventListener("keydown", function (e) {
+            if (e.key === "Escape") {
+              closeDropdown();
+            }
+          });
+          document.addEventListener("click", function (e) {
+            if (!searchInput || !searchDropdown) return;
+            var t = e.target;
+            if (t !== searchInput && !searchDropdown.contains(t)) {
+              closeDropdown();
+            }
+          });
+        }
+
+        var itineraryLines = document.getElementById("heroItineraryLines");
+        var itineraryLoopTimer = null;
+        var itinerarySeqTimers = [];
+
+        function clearItineraryTimers() {
+          if (itineraryLoopTimer) {
+            clearTimeout(itineraryLoopTimer);
+            itineraryLoopTimer = null;
+          }
+          itinerarySeqTimers.forEach(function (id) {
+            clearTimeout(id);
+          });
+          itinerarySeqTimers = [];
+        }
+
+        function typeIntoEl(el, text, charDelay, done) {
+          var i = 0;
+          function step() {
+            if (i <= text.length) {
+              el.textContent = text.slice(0, i);
+              i += 1;
+              itinerarySeqTimers.push(setTimeout(step, charDelay));
+            } else if (done) {
+              done();
+            }
+          }
+          step();
+        }
+
+        function addCheckLine(container, label) {
+          var div = document.createElement("div");
+          div.className =
+            "hero__itinerary-line hero__itinerary-line--muted hero__itinerary-line--check";
+          div.innerHTML =
+            '<i class="fa-solid fa-check" aria-hidden="true"></i><span>' + label + "</span>";
+          container.appendChild(div);
+          requestAnimationFrame(function () {
+            div.classList.add("is-visible");
+          });
+        }
+
+        function runItinerarySequence() {
+          if (!itineraryLines) return;
+          clearItineraryTimers();
+          itineraryLines.innerHTML = "";
+
+          var line1 = document.createElement("div");
+          line1.className = "hero__itinerary-line hero__itinerary-line--tw";
+          itineraryLines.appendChild(line1);
+
+          typeIntoEl(line1, "Day 1 — Arrival", 50, function () {
+            itinerarySeqTimers.push(
+              setTimeout(function () {
+                addCheckLine(itineraryLines, "Flight booked");
+              }, 120)
+            );
+            itinerarySeqTimers.push(
+              setTimeout(function () {
+                addCheckLine(itineraryLines, "Hotel confirmed");
+              }, 340)
+            );
+            itinerarySeqTimers.push(
+              setTimeout(function () {
+                addCheckLine(itineraryLines, "Transfer arranged");
+              }, 560)
+            );
+            itinerarySeqTimers.push(
+              setTimeout(function () {
+                var line2 = document.createElement("div");
+                line2.className = "hero__itinerary-line hero__itinerary-line--tw";
+                line2.style.marginTop = "8px";
+                itineraryLines.appendChild(line2);
+                typeIntoEl(line2, "Day 2 — Explore", 50, function () {
+                  itinerarySeqTimers.push(
+                    setTimeout(function () {
+                      addCheckLine(itineraryLines, "Eiffel Tower");
+                    }, 120)
+                  );
+                });
+              }, 780)
+            );
+          });
+
+          itineraryLoopTimer = setTimeout(function () {
+            runItinerarySequence();
+          }, 4000);
+        }
+
+        if (itineraryLines) {
+          runItinerarySequence();
+        }
+
+        window.addEventListener(
+          "beforeunload",
+          function () {
+            clearItineraryTimers();
+            if (statusTimer) clearTimeout(statusTimer);
+          },
+          { passive: true }
+        );
+      })();
+    })();
+  </script>
+</body>
+</html>
