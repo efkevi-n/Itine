@@ -6,29 +6,29 @@ import { Feather } from '@expo/vector-icons';
 const mockTrips = [
   {
     id: '1',
-    destination: '🗼 Paris, France',
-    dates: 'Jun 10 – Jun 20, 2025',
+    destination: 'Paris, France',
+    dates: 'Jun 10 - Jun 20, 2025',
     budget: '$2,400',
     status: 'Confirmed',
   },
   {
     id: '2',
-    destination: '🏝️ Bali, Indonesia',
-    dates: 'Aug 1 – Aug 14, 2025',
+    destination: 'Bali, Indonesia',
+    dates: 'Aug 1 - Aug 14, 2025',
     budget: '$1,800',
     status: 'Pending',
   },
   {
     id: '3',
-    destination: '🗽 New York, USA',
-    dates: 'Mar 5 – Mar 10, 2025',
+    destination: 'New York, USA',
+    dates: 'Mar 5 - Mar 10, 2025',
     budget: '$3,200',
     status: 'Completed',
   },
   {
     id: '4',
-    destination: '🌍 Safari, Kenya',
-    dates: 'Sep 15 – Sep 25, 2025',
+    destination: 'Safari, Kenya',
+    dates: 'Sep 15 - Sep 25, 2025',
     budget: '$5,000',
     status: 'Active',
   },
@@ -47,9 +47,9 @@ export default function HomeScreen() {
   const userInitials = userName.slice(0, 2).toUpperCase();
   const pulseAnim = useRef(new Animated.Value(0)).current;
   const quickStats = [
-    { label: 'Total Trips', value: mockTrips.length, icon: '✈️', accent: '#3b82f6' },
-    { label: 'Active', value: mockTrips.filter((trip) => trip.status === 'Active').length, icon: '🟢', accent: '#22c55e' },
-    { label: 'Completed', value: mockTrips.filter((trip) => trip.status === 'Completed').length, icon: '✅', accent: '#94a3b8' },
+    { label: 'Total Trips', value: mockTrips.length, accent: '#3b82f6' },
+    { label: 'Active', value: mockTrips.filter((trip) => trip.status === 'Active').length, accent: '#22c55e' },
+    { label: 'Completed', value: mockTrips.filter((trip) => trip.status === 'Completed').length, accent: '#94a3b8' },
   ];
 
   useEffect(() => {
@@ -64,7 +64,7 @@ export default function HomeScreen() {
   }, [pulseAnim]);
 
   const getRelativeTripTime = (dates: string) => {
-    const [startPart] = dates.split('–');
+    const [startPart] = dates.split('-');
     const startText = `${startPart.trim()}, 2025`;
     const startDate = new Date(startText);
     if (Number.isNaN(startDate.getTime())) return 'Schedule unavailable';
@@ -101,10 +101,10 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.searchBar}>
-          <Feather name="search" size={18} color="#4b5563" style={styles.searchIcon} />
+          <Feather name="search" size={16} color="#4b5563" style={styles.searchIcon} />
           <Text style={styles.searchPlaceholder}>Search destinations...</Text>
           <TouchableOpacity style={styles.filterBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Feather name="sliders" size={18} color="#6366f1" />
+            <Feather name="sliders" size={16} color="#6366f1" />
           </TouchableOpacity>
         </View>
 
@@ -122,7 +122,10 @@ export default function HomeScreen() {
               },
             ]}
           />
-          <Text style={styles.ctaText}>Plan a New Trip</Text>
+          <View style={styles.ctaRow}>
+            <Feather name="map" size={18} color="#ffffff" />
+            <Text style={styles.ctaText}>Plan a New Trip</Text>
+          </View>
         </TouchableOpacity>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statsRow}>
@@ -157,8 +160,8 @@ export default function HomeScreen() {
           >
             <View style={styles.cardHeader}>
               <View style={styles.destinationRow}>
-                <Feather name="map-pin" size={16} color="#6366f1" style={styles.cardPinIcon} />
-                <Text style={styles.destination}>{trip.destination.replace(/^[^\s]+\s/, '')}</Text>
+                <Feather name="map-pin" size={14} color="#6366f1" style={styles.cardPinIcon} />
+                <Text style={styles.destination}>{trip.destination}</Text>
               </View>
               <View style={[styles.badge, { backgroundColor: `${statusColors[trip.status]}22` }]}>
                 <Text style={[styles.badgeText, { color: statusColors[trip.status] }]}>{trip.status}</Text>
@@ -168,7 +171,7 @@ export default function HomeScreen() {
             <View style={styles.cardDetailsRow}>
               <View style={styles.detailColumn}>
                 <View style={styles.detailLabelRow}>
-                  <Feather name="calendar" size={12} color="#4b5563" />
+                  <Feather name="calendar" size={10} color="#4b5563" />
                   <Text style={styles.detailLabel}>Dates</Text>
                 </View>
                 <View style={styles.detailPill}>
@@ -178,7 +181,7 @@ export default function HomeScreen() {
               </View>
               <View style={styles.detailColumn}>
                 <View style={styles.detailLabelRow}>
-                  <Feather name="dollar-sign" size={12} color="#4b5563" />
+                  <Feather name="dollar-sign" size={10} color="#4b5563" />
                   <Text style={styles.detailLabel}>Budget</Text>
                 </View>
                 <View style={styles.detailPill}>
@@ -189,7 +192,7 @@ export default function HomeScreen() {
 
             <View style={styles.cardFooter}>
               <View style={styles.arrowButton}>
-                <Feather name="chevron-right" size={18} color="#ffffff" />
+                <Feather name="chevron-right" size={16} color="#6366f1" />
               </View>
             </View>
           </TouchableOpacity>
@@ -207,19 +210,20 @@ const styles = StyleSheet.create({
   glowOrb: {
     position: 'absolute',
     borderRadius: 999,
-    backgroundColor: 'rgba(99,102,241,0.08)',
   },
   glowOrbTop: {
     width: 400,
     height: 400,
     top: -120,
     right: -100,
+    backgroundColor: 'rgba(99,102,241,0.08)',
   },
   glowOrbBottom: {
     width: 300,
     height: 300,
     bottom: -100,
     left: -80,
+    backgroundColor: 'rgba(99,102,241,0.06)',
   },
   scroll: {
     flex: 1,
@@ -309,23 +313,27 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(99,102,241,0.45)',
   },
+  ctaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   ctaText: {
     color: '#ffffff',
     fontWeight: '700',
     fontSize: 16,
+    marginLeft: 10,
   },
   statsRow: {
     paddingBottom: 28,
     gap: 12,
   },
   statCard: {
-    minWidth: 108,
+    minWidth: 100,
     backgroundColor: '#13131f',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.07)',
     borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    padding: 16,
     marginRight: 12,
   },
   statIconWrap: {
@@ -340,14 +348,14 @@ const styles = StyleSheet.create({
   },
   statValue: {
     color: '#ffffff',
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '700',
-    lineHeight: 30,
+    lineHeight: 32,
   },
   statLabel: {
-    color: '#9ca3af',
+    color: '#4b5563',
     marginTop: 4,
-    fontSize: 10,
+    fontSize: 11,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
     fontWeight: '600',
