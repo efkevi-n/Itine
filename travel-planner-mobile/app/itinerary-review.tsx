@@ -1,21 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  ScrollView
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
 import { scheduleAllTripNotifications } from '../utils/notifications';
 
 const mockItinerary = [
   {
     day: 1,
     title: 'Arrival Day',
-    flight: { info: 'TK 1234 — Istanbul → Paris', cost: '$420' },
+    flight: { info: 'TK 1234 - Istanbul to Paris', cost: '$420' },
     hotel: { name: 'Ibis Paris Centre', type: 'Budget Hotel', cost: '$85/night' },
-    transport: { info: 'CDG Airport → Hotel (Taxi)', cost: '$35' },
+    transport: { info: 'CDG Airport to Hotel (Taxi)', cost: '$35' },
     activities: [
-      { name: '🍽️ Welcome dinner', cost: '$30' },
-      { name: '🚶 Evening walk along Seine', cost: 'Free' },
+      { name: 'Welcome dinner', cost: '$30' },
+      { name: 'Evening walk along Seine', cost: 'Free' },
     ],
   },
   {
@@ -25,9 +30,9 @@ const mockItinerary = [
     hotel: { name: 'Ibis Paris Centre', type: 'Budget Hotel', cost: '$85/night' },
     transport: { info: 'Metro Day Pass', cost: '$15' },
     activities: [
-      { name: '🗼 Eiffel Tower visit', cost: '$28' },
-      { name: '🛍️ Champs-Élysées shopping', cost: '$50' },
-      { name: '🍜 Lunch at local café', cost: '$20' },
+      { name: 'Eiffel Tower visit', cost: '$28' },
+      { name: 'Champs-Elysees shopping', cost: '$50' },
+      { name: 'Lunch at local cafe', cost: '$20' },
     ],
   },
   {
@@ -37,18 +42,18 @@ const mockItinerary = [
     hotel: { name: 'Ibis Paris Centre', type: 'Budget Hotel', cost: '$85/night' },
     transport: { info: 'Metro Day Pass', cost: '$15' },
     activities: [
-      { name: '🏛️ Louvre Museum', cost: '$22' },
-      { name: '🎭 Evening show', cost: '$45' },
-      { name: '🥐 Breakfast at patisserie', cost: '$12' },
+      { name: 'Louvre Museum', cost: '$22' },
+      { name: 'Evening show', cost: '$45' },
+      { name: 'Breakfast at patisserie', cost: '$12' },
     ],
   },
 ];
 
 const budgetBreakdown = [
-  { label: 'Flights', amount: 420, color: '#38bdf8', emoji: '✈️' },
-  { label: 'Hotels', amount: 850, color: '#22c55e', emoji: '🏨' },
-  { label: 'Activities', amount: 620, color: '#f59e0b', emoji: '🎭' },
-  { label: 'Transport', amount: 180, color: '#a78bfa', emoji: '🚗' },
+  { label: 'Flights', amount: 420, color: '#38bdf8', icon: 'navigation' as const },
+  { label: 'Hotels', amount: 850, color: '#22c55e', icon: 'home' as const },
+  { label: 'Activities', amount: 620, color: '#f59e0b', icon: 'film' as const },
+  { label: 'Transport', amount: 180, color: '#a78bfa', icon: 'truck' as const },
 ];
 
 const totalBudget = budgetBreakdown.reduce((sum, item) => sum + item.amount, 0);
@@ -56,6 +61,15 @@ const totalBudget = budgetBreakdown.reduce((sum, item) => sum + item.amount, 0);
 export default function ItineraryReviewScreen() {
   const router = useRouter();
   const [expandedDay, setExpandedDay] = useState<number | null>(1);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 520,
+      useNativeDriver: true,
+    }).start();
+  }, [fadeAnim]);
 
   const handleConfirm = async () => {
     await scheduleAllTripNotifications('Paris, France', new Date('2025-06-10'));
@@ -63,155 +77,194 @@ export default function ItineraryReviewScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.7}>
-        <Text style={styles.backText}>← Back</Text>
-      </TouchableOpacity>
+    <View style={styles.screen}>
+      <View style={[styles.glowOrb, styles.glowOrbTop]} pointerEvents="none" />
+      <View style={[styles.glowOrb, styles.glowOrbBottom]} pointerEvents="none" />
 
-      <View style={styles.headerSection}>
-        <Text style={styles.headerKicker}>ITINERARY REVIEW</Text>
-        <Text style={styles.headerTitle}>Your Trip Plan</Text>
-        <Text style={styles.headerSubtitle}>Review and confirm your AI-generated itinerary</Text>
-        <View style={styles.headerDivider} />
-      </View>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <Animated.View style={{ opacity: fadeAnim }}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.7}>
+            <Feather name="chevron-left" size={22} color="#6366f1" />
+            <Text style={styles.backText}>Back</Text>
+          </TouchableOpacity>
 
-      <View style={styles.summaryCard}>
-        <Text style={styles.cardKicker}>TRIP SUMMARY</Text>
-        <Text style={styles.destinationText}>{'\u2708\uFE0F'} Paris, France</Text>
-        <View style={styles.pillRow}>
-          <View style={styles.pill}>
-            <Text style={styles.pillText}>{'\uD83D\uDCC5'} Jun 10–20, 2025</Text>
+          <View style={styles.headerSection}>
+            <Text style={styles.headerKicker}>ITINERARY REVIEW</Text>
+            <Text style={styles.headerTitle}>Your Trip Plan</Text>
+            <Text style={styles.headerSubtitle}>Review and confirm your AI-generated itinerary</Text>
+            <View style={styles.headerDivider} />
           </View>
-          <View style={styles.pill}>
-            <Text style={styles.pillText}>{'\uD83C\uDF19'} 10 nights</Text>
-          </View>
-          <View style={[styles.pill, styles.pillAccent]}>
-            <Text style={styles.pillAccentText}>{'\uD83D\uDCB0'} Total: ${totalBudget}</Text>
-          </View>
-        </View>
-      </View>
 
-      <View style={styles.budgetCard}>
-        <Text style={styles.cardKicker}>BUDGET BREAKDOWN</Text>
-        <View style={styles.budgetBar}>
-          {budgetBreakdown.map((item) => (
-            <View
-              key={item.label}
-              style={[
-                styles.budgetSegment,
-                { flex: item.amount / totalBudget, backgroundColor: item.color },
-              ]}
-            />
-          ))}
-        </View>
-        <View style={styles.budgetLegend}>
-          {budgetBreakdown.map((item) => (
-            <View key={item.label} style={styles.legendRow}>
-              <View style={styles.legendLeft}>
-                <View style={[styles.legendDot, { backgroundColor: item.color }]} />
-                <Text style={styles.legendLabel}>
-                  {item.emoji} {item.label}
-                </Text>
+          <View style={styles.summaryCard}>
+            <Text style={styles.cardKicker}>TRIP SUMMARY</Text>
+            <Text style={styles.destinationText}>Paris, France</Text>
+            <View style={styles.pillRow}>
+              <View style={styles.pill}>
+                <Text style={styles.pillText}>Jun 10-20, 2025</Text>
               </View>
-              <Text style={styles.legendAmount}>${item.amount}</Text>
+              <View style={styles.pill}>
+                <Text style={styles.pillText}>10 nights</Text>
+              </View>
+              <View style={[styles.pill, styles.pillAccent]}>
+                <Text style={styles.pillAccentText}>Total: ${totalBudget}</Text>
+              </View>
             </View>
-          ))}
-        </View>
-        <View style={styles.budgetTotalRow}>
-          <Text style={styles.budgetTotalLabel}>TOTAL</Text>
-          <Text style={styles.budgetTotalValue}>${totalBudget}</Text>
-        </View>
-      </View>
+          </View>
 
-      <View style={styles.dayByDaySection}>
-        <Text style={styles.sectionKicker}>DAY-BY-DAY PLAN</Text>
-        {mockItinerary.map((day) => (
-          <View key={day.day} style={styles.dayCard}>
-            <TouchableOpacity
-              style={styles.dayHeader}
-              onPress={() => setExpandedDay(expandedDay === day.day ? null : day.day)}
-              activeOpacity={0.7}
-            >
-              <View>
-                <Text style={styles.dayKicker}>DAY {day.day}</Text>
-                <Text style={styles.dayTitle}>{day.title}</Text>
-              </View>
-              <Text style={styles.expandIcon}>{expandedDay === day.day ? '\u25B2' : '\u25BC'}</Text>
-            </TouchableOpacity>
+          <View style={styles.budgetCard}>
+            <Text style={styles.cardKicker}>BUDGET BREAKDOWN</Text>
+            <View style={styles.budgetBar}>
+              {budgetBreakdown.map((item) => (
+                <View
+                  key={item.label}
+                  style={[
+                    styles.budgetSegment,
+                    { flex: item.amount / totalBudget, backgroundColor: item.color },
+                  ]}
+                />
+              ))}
+            </View>
+            <View style={styles.budgetLegend}>
+              {budgetBreakdown.map((item) => (
+                <View key={item.label} style={styles.legendRow}>
+                  <View style={styles.legendLeft}>
+                    <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                    <Feather name={item.icon} size={14} color="#9ca3af" style={styles.legendIcon} />
+                    <Text style={styles.legendLabel}>{item.label}</Text>
+                  </View>
+                  <Text style={styles.legendAmount}>${item.amount}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={styles.budgetTotalRow}>
+              <Text style={styles.budgetTotalLabel}>TOTAL</Text>
+              <Text style={styles.budgetTotalValue}>${totalBudget}</Text>
+            </View>
+          </View>
 
-            {expandedDay === day.day && (
-              <View style={styles.dayExpanded}>
-                <View style={styles.expandedDivider} />
-                {day.flight && (
-                  <View style={styles.itemRow}>
-                    <View style={styles.itemInfo}>
-                      <Text style={styles.itemTypeLabel}>{'\u2708\uFE0F'} FLIGHT</Text>
-                      <Text style={styles.itemValue}>{day.flight.info}</Text>
+          <View style={styles.dayByDaySection}>
+            <Text style={styles.sectionKicker}>DAY-BY-DAY PLAN</Text>
+            {mockItinerary.map((day) => (
+              <View key={day.day} style={styles.dayCard}>
+                <TouchableOpacity
+                  style={styles.dayHeader}
+                  onPress={() => setExpandedDay(expandedDay === day.day ? null : day.day)}
+                  activeOpacity={0.7}
+                >
+                  <View>
+                    <Text style={styles.dayKicker}>DAY {day.day}</Text>
+                    <Text style={styles.dayTitle}>{day.title}</Text>
+                  </View>
+                  <Feather
+                    name={expandedDay === day.day ? 'chevron-up' : 'chevron-down'}
+                    size={22}
+                    color="#6366f1"
+                  />
+                </TouchableOpacity>
+
+                {expandedDay === day.day && (
+                  <View style={styles.dayExpanded}>
+                    <View style={styles.expandedDivider} />
+                    {day.flight && (
+                      <View style={styles.itemRow}>
+                        <View style={styles.itemInfo}>
+                          <Text style={styles.itemTypeLabel}>FLIGHT</Text>
+                          <Text style={styles.itemValue}>{day.flight.info}</Text>
+                        </View>
+                        <View style={styles.itemRight}>
+                          <Text style={styles.itemCost}>{day.flight.cost}</Text>
+                          <TouchableOpacity style={styles.swapBtn} activeOpacity={0.7}>
+                            <Text style={styles.swapText}>Swap</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
+
+                    <View style={styles.itemRow}>
+                      <View style={styles.itemInfo}>
+                        <Text style={styles.itemTypeLabel}>HOTEL</Text>
+                        <Text style={styles.itemValue}>{day.hotel.name}</Text>
+                        <Text style={styles.itemSubValue}>{day.hotel.type}</Text>
+                      </View>
+                      <View style={styles.itemRight}>
+                        <Text style={styles.itemCost}>{day.hotel.cost}</Text>
+                        <TouchableOpacity style={styles.swapBtn} activeOpacity={0.7}>
+                          <Text style={styles.swapText}>Swap</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                    <View style={styles.itemRight}>
-                      <Text style={styles.itemCost}>{day.flight.cost}</Text>
-                      <TouchableOpacity style={styles.swapBtn} activeOpacity={0.7}>
-                        <Text style={styles.swapText}>Swap</Text>
-                      </TouchableOpacity>
+
+                    <View style={styles.itemRow}>
+                      <View style={styles.itemInfo}>
+                        <Text style={styles.itemTypeLabel}>TRANSPORT</Text>
+                        <Text style={styles.itemValue}>{day.transport.info}</Text>
+                      </View>
+                      <View style={styles.itemRight}>
+                        <Text style={styles.itemCost}>{day.transport.cost}</Text>
+                        <TouchableOpacity style={styles.swapBtn} activeOpacity={0.7}>
+                          <Text style={styles.swapText}>Swap</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
+
+                    <Text style={styles.activitiesLabel}>ACTIVITIES</Text>
+                    {day.activities.map((activity, index) => (
+                      <View
+                        key={index}
+                        style={[
+                          styles.activityRow,
+                          index < day.activities.length - 1 && styles.activityRowSep,
+                        ]}
+                      >
+                        <Text style={styles.activityName}>{activity.name}</Text>
+                        <Text style={styles.activityCost}>{activity.cost}</Text>
+                      </View>
+                    ))}
                   </View>
                 )}
-
-                <View style={styles.itemRow}>
-                  <View style={styles.itemInfo}>
-                    <Text style={styles.itemTypeLabel}>{'\uD83C\uDFE8'} HOTEL</Text>
-                    <Text style={styles.itemValue}>{day.hotel.name}</Text>
-                    <Text style={styles.itemSubValue}>{day.hotel.type}</Text>
-                  </View>
-                  <View style={styles.itemRight}>
-                    <Text style={styles.itemCost}>{day.hotel.cost}</Text>
-                    <TouchableOpacity style={styles.swapBtn} activeOpacity={0.7}>
-                      <Text style={styles.swapText}>Swap</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                <View style={styles.itemRow}>
-                  <View style={styles.itemInfo}>
-                    <Text style={styles.itemTypeLabel}>{'\uD83D\uDE97'} TRANSPORT</Text>
-                    <Text style={styles.itemValue}>{day.transport.info}</Text>
-                  </View>
-                  <View style={styles.itemRight}>
-                    <Text style={styles.itemCost}>{day.transport.cost}</Text>
-                    <TouchableOpacity style={styles.swapBtn} activeOpacity={0.7}>
-                      <Text style={styles.swapText}>Swap</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                <Text style={styles.activitiesLabel}>ACTIVITIES</Text>
-                {day.activities.map((activity, index) => (
-                  <View key={index} style={styles.activityRow}>
-                    <Text style={styles.activityName}>{activity.name}</Text>
-                    <Text style={styles.activityCost}>{activity.cost}</Text>
-                  </View>
-                ))}
               </View>
-            )}
+            ))}
           </View>
-        ))}
-      </View>
 
-      <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirm} activeOpacity={0.85}>
-        <Text style={styles.confirmText}>Confirm & Generate QR Pass</Text>
-      </TouchableOpacity>
+          <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirm} activeOpacity={0.85}>
+            <Text style={styles.confirmText}>Confirm & Generate QR Pass</Text>
+          </TouchableOpacity>
 
-      <TouchableOpacity style={styles.regenerateBtn} onPress={() => router.back()} activeOpacity={0.7}>
-        <Text style={styles.regenerateText}>Regenerate</Text>
-      </TouchableOpacity>
-    </ScrollView>
+          <TouchableOpacity style={styles.regenerateBtn} onPress={() => router.back()} activeOpacity={0.7}>
+            <Text style={styles.regenerateText}>Regenerate</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
     backgroundColor: '#0d0d14',
+  },
+  glowOrb: {
+    position: 'absolute',
+    width: 320,
+    height: 320,
+    borderRadius: 999,
+    backgroundColor: 'rgba(99,102,241,0.08)',
+  },
+  glowOrbTop: {
+    top: -80,
+    right: -100,
+  },
+  glowOrbBottom: {
+    bottom: -120,
+    left: -80,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     paddingHorizontal: 24,
@@ -219,6 +272,9 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     alignSelf: 'flex-start',
     marginTop: 48,
     paddingVertical: 4,
@@ -226,7 +282,7 @@ const styles = StyleSheet.create({
   backText: {
     color: '#6366f1',
     fontSize: 16,
-    backgroundColor: 'transparent',
+    fontWeight: '500',
   },
   headerSection: {
     gap: 6,
@@ -236,18 +292,20 @@ const styles = StyleSheet.create({
     color: '#4b5563',
     letterSpacing: 1.5,
     textTransform: 'uppercase',
+    fontWeight: '600',
   },
   headerTitle: {
     fontSize: 26,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#ffffff',
   },
   headerSubtitle: {
     fontSize: 13,
     color: '#9ca3af',
+    lineHeight: 20,
   },
   headerDivider: {
-    height: 1,
+    height: StyleSheet.hairlineWidth,
     backgroundColor: 'rgba(255,255,255,0.06)',
     marginTop: 10,
   },
@@ -262,12 +320,13 @@ const styles = StyleSheet.create({
   cardKicker: {
     fontSize: 10,
     color: '#4b5563',
-    letterSpacing: 1.2,
+    letterSpacing: 1.5,
     textTransform: 'uppercase',
+    fontWeight: '600',
   },
   destinationText: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#ffffff',
   },
   pillRow: {
@@ -324,13 +383,16 @@ const styles = StyleSheet.create({
   legendLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     flex: 1,
   },
   legendDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  legendIcon: {
+    marginRight: 2,
   },
   legendLabel: {
     fontSize: 13,
@@ -340,25 +402,26 @@ const styles = StyleSheet.create({
   legendAmount: {
     fontSize: 13,
     color: '#ffffff',
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   budgetTotalRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingTop: 12,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: 'rgba(255,255,255,0.06)',
   },
   budgetTotalLabel: {
     fontSize: 10,
     color: '#4b5563',
-    letterSpacing: 1.2,
+    letterSpacing: 1.5,
     textTransform: 'uppercase',
+    fontWeight: '600',
   },
   budgetTotalValue: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#ffffff',
   },
   dayByDaySection: {
@@ -367,8 +430,9 @@ const styles = StyleSheet.create({
   sectionKicker: {
     fontSize: 10,
     color: '#4b5563',
-    letterSpacing: 1.2,
+    letterSpacing: 1.5,
     textTransform: 'uppercase',
+    fontWeight: '600',
   },
   dayCard: {
     backgroundColor: '#13131f',
@@ -387,25 +451,22 @@ const styles = StyleSheet.create({
   dayKicker: {
     fontSize: 10,
     color: '#4b5563',
-    letterSpacing: 1.2,
+    letterSpacing: 1.5,
     textTransform: 'uppercase',
+    fontWeight: '600',
   },
   dayTitle: {
     fontSize: 15,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#ffffff',
     marginTop: 4,
-  },
-  expandIcon: {
-    color: '#6366f1',
-    fontSize: 14,
   },
   dayExpanded: {
     paddingHorizontal: 16,
     paddingBottom: 16,
   },
   expandedDivider: {
-    height: 1,
+    height: StyleSheet.hairlineWidth,
     backgroundColor: 'rgba(255,255,255,0.06)',
     marginBottom: 14,
   },
@@ -415,7 +476,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     paddingBottom: 12,
     marginBottom: 12,
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(255,255,255,0.05)',
   },
   itemInfo: {
@@ -425,8 +486,9 @@ const styles = StyleSheet.create({
   itemTypeLabel: {
     fontSize: 10,
     color: '#4b5563',
-    letterSpacing: 0.8,
+    letterSpacing: 1.5,
     textTransform: 'uppercase',
+    fontWeight: '600',
     marginBottom: 4,
   },
   itemValue: {
@@ -445,33 +507,39 @@ const styles = StyleSheet.create({
   itemCost: {
     fontSize: 14,
     color: '#ffffff',
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   swapBtn: {
     backgroundColor: 'rgba(99,102,241,0.1)',
     borderWidth: 1,
     borderColor: 'rgba(99,102,241,0.3)',
     borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   swapText: {
     color: '#6366f1',
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   activitiesLabel: {
     fontSize: 10,
     color: '#4b5563',
-    letterSpacing: 1.2,
+    letterSpacing: 1.5,
     textTransform: 'uppercase',
+    fontWeight: '600',
     marginBottom: 10,
+    marginTop: 4,
   },
   activityRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
+    paddingVertical: 10,
+  },
+  activityRowSep: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
   },
   activityName: {
     fontSize: 14,
@@ -495,7 +563,7 @@ const styles = StyleSheet.create({
   confirmText: {
     color: '#ffffff',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   regenerateBtn: {
     width: '100%',
@@ -510,5 +578,6 @@ const styles = StyleSheet.create({
   regenerateText: {
     color: '#9ca3af',
     fontSize: 16,
+    fontWeight: '500',
   },
 });
