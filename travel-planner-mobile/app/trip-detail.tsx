@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, Share, Animated,
+  ScrollView, ActivityIndicator, Share, Animated, Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -35,6 +35,7 @@ export default function TripDetailScreen() {
   const [bookings, setBookings] = useState<BookingDetailView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -84,6 +85,35 @@ export default function TripDetailScreen() {
     if (!resolvedId) return;
     loadData();
   }, [resolvedId, loadData]);
+
+  const handleCancel = useCallback(() => {
+    if (!resolvedId) return;
+    Alert.alert(
+      'Cancel Trip',
+      'Are you sure you want to cancel this trip? This cannot be undone.',
+      [
+        { text: 'Keep Trip', style: 'cancel' },
+        {
+          text: 'Cancel Trip',
+          style: 'destructive',
+          onPress: async () => {
+            setCancelling(true);
+            try {
+              if (trip?.status?.toUpperCase() === 'PENDING') {
+                await tripsApi.delete(resolvedId);
+              } else {
+                await tripsApi.update(resolvedId, { status: 'CANCELLED' });
+              }
+              router.replace('/(tabs)/trips');
+            } catch {
+              setCancelling(false);
+              Alert.alert('Error', 'Failed to cancel trip. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  }, [resolvedId, router, trip?.status]);
 
   const handleShare = useCallback(async () => {
     if (!trip || !resolvedId) return;
@@ -140,6 +170,7 @@ export default function TripDetailScreen() {
   const statusColor = STATUS_COLORS[trip.status?.toUpperCase()] ?? '#94a3b8';
   const showQr = isQrPassAvailable(trip.status);
   const isActive = trip.status?.toUpperCase() === 'ACTIVE';
+  const isCancellable = ['PENDING', 'CONFIRMED'].includes(trip.status?.toUpperCase());
   const datesFormatted = formatTripDateRange(trip.startDate, trip.endDate);
 
   return (
@@ -209,6 +240,22 @@ export default function TripDetailScreen() {
               <Text style={styles.shareBtnText}>Share</Text>
             </TouchableOpacity>
           </View>
+
+          {isCancellable && (
+            <TouchableOpacity
+              style={[styles.cancelBtn, cancelling && styles.cancelBtnDisabled]}
+              onPress={handleCancel}
+              disabled={cancelling}
+              activeOpacity={0.8}
+            >
+              {cancelling
+                ? <ActivityIndicator size="small" color="#ef4444" />
+                : <Feather name="x-circle" size={16} color="#ef4444" />}
+              <Text style={styles.cancelBtnText}>
+                {cancelling ? 'Cancelling...' : 'Cancel Trip'}
+              </Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={styles.budgetNavBtn}
@@ -312,4 +359,11 @@ const styles = StyleSheet.create({
     borderRadius: 14, padding: 32, alignItems: 'center', gap: 12,
   },
   emptyText: { color: '#4b5563', fontSize: 14, textAlign: 'center', lineHeight: 22 },
+  cancelBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    height: 48, backgroundColor: 'rgba(239,68,68,0.08)', borderRadius: 12,
+    borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)', marginBottom: 20,
+  },
+  cancelBtnDisabled: { opacity: 0.5 },
+  cancelBtnText: { color: '#ef4444', fontWeight: '600', fontSize: 15 },
 });

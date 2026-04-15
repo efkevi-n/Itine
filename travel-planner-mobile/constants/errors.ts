@@ -1,5 +1,6 @@
 export const ERROR_MESSAGES = {
   NETWORK: 'Check your connection and try again',
+  TIMEOUT: 'The server took too long to respond. Please try again.',
   SERVER: 'Something went wrong, please try again',
   INVALID_CREDENTIALS: 'Email or password is incorrect',
   BUDGET_TOO_LOW: 'Your budget is too low for this destination',

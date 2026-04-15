@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
+  View, Text, TextInput, TouchableOpacity, Modal,
   StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { api } from '@/api/client';
 import { DestinationSearch } from '@/components/DestinationSearch';
 import { FullScreenLoader } from '@/components/FullScreenLoader';
@@ -32,6 +33,14 @@ function parseDate(str: string): Date | null {
 
 function isValidDateString(s: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(s.trim());
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+function formatDateYYYYMMDD(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
 function validate(
@@ -66,6 +75,8 @@ export default function NewTripScreen() {
   const [origin, setOrigin] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [pickerField, setPickerField] = useState<'startDate' | 'endDate' | null>(null);
+  const [pickerValue, setPickerValue] = useState<Date>(new Date());
   const [budget, setBudget] = useState('');
   const [currency, setCurrency] = useState('USD');
   const [selectedPrefs, setSelectedPrefs] = useState<string[]>([]);
@@ -80,7 +91,7 @@ export default function NewTripScreen() {
       duration: 520,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [fadeAnim]);
 
   const togglePref = (id: string) => {
     if (loading) return;
@@ -102,16 +113,19 @@ export default function NewTripScreen() {
     }
     setLoading(true);
     try {
+      const preferencesObj = preferences.reduce<Record<string, boolean>>((acc, pref) => {
+        acc[pref.id] = selectedPrefs.includes(pref.id);
+        return acc;
+      }, {});
+
       const createRes = await api.post<{ id?: string; data?: { id?: string } }>('/trips', {
         destination: destination.trim(),
-        originCity: origin.trim(),
+        origin: origin.trim(),
         startDate: startDate.trim(),
         endDate: endDate.trim(),
-        totalBudget: parseFloat(budget),
-        currency,
-        preferences: selectedPrefs.map(
-          (id) => preferences.find((p) => p.id === id)?.apiValue ?? id
-        ),
+        budget: Number(budget),
+        currency: currency,
+        preferences: preferencesObj,
       });
 
       const tripId =
@@ -156,7 +170,9 @@ export default function NewTripScreen() {
       }
 
       setError('Generation is taking longer than expected. Please check "Your Trips" later.');
-    } catch (err: unknown) {
+    } catch (err: any) {
+      console.log('TRIP ERROR:', JSON.stringify(err?.response?.data, null, 2));
+      console.log('STATUS:', err?.response?.status);
       setError(getErrorMessage(err));
     } finally {
       setLoading(false);
@@ -170,6 +186,42 @@ export default function NewTripScreen() {
       ? 'rgba(99,102,241,0.5)'
       : 'rgba(255,255,255,0.07)',
   });
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const openDatePicker = (field: 'startDate' | 'endDate') => {
+    if (disabled) return;
+    setError('');
+
+    const current =
+      field === 'startDate'
+        ? parseDate(startDate) ?? today
+        : parseDate(endDate) ?? parseDate(startDate) ?? today;
+
+    setPickerValue(current);
+    setPickerField(field);
+  };
+
+  const commitPickedDate = (field: 'startDate' | 'endDate', d: Date) => {
+    const next = formatDateYYYYMMDD(d);
+    if (field === 'startDate') {
+      setStartDate(next);
+      const end = parseDate(endDate);
+      if (end && end <= d) setEndDate('');
+      return;
+    }
+    setEndDate(next);
+  };
+
+  const minimumForField = (field: 'startDate' | 'endDate'): Date => {
+    if (field === 'startDate') return today;
+    const start = parseDate(startDate);
+    if (!start) return today;
+    const min = new Date(start);
+    min.setDate(min.getDate() + 1);
+    return min;
+  };
 
   return (
     <>
@@ -232,30 +284,40 @@ export default function NewTripScreen() {
 
               <View style={styles.field}>
                 <Text style={styles.fieldLabel}>START DATE</Text>
-                <TextInput
-                  style={[styles.input, inputBorder('startDate')]}
-                  placeholder="e.g. 2026-06-10"
-                  placeholderTextColor="#4b5563"
-                  value={startDate}
-                  onChangeText={setStartDate}
-                  editable={!disabled}
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  disabled={disabled}
+                  onPress={() => openDatePicker('startDate')}
+                  style={[styles.input, styles.dateInput, inputBorder('startDate')]}
                   onFocus={() => setFocusedField('startDate')}
                   onBlur={() => setFocusedField(null)}
-                />
+                  accessibilityRole="button"
+                  accessibilityLabel="Pick start date"
+                >
+                  <Text style={[styles.dateText, !startDate && styles.datePlaceholder]}>
+                    {startDate || 'Pick a date'}
+                  </Text>
+                  <Feather name="calendar" size={18} color="#9ca3af" />
+                </TouchableOpacity>
               </View>
 
               <View style={styles.field}>
                 <Text style={styles.fieldLabel}>END DATE</Text>
-                <TextInput
-                  style={[styles.input, inputBorder('endDate')]}
-                  placeholder="e.g. 2026-06-20"
-                  placeholderTextColor="#4b5563"
-                  value={endDate}
-                  onChangeText={setEndDate}
-                  editable={!disabled}
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  disabled={disabled}
+                  onPress={() => openDatePicker('endDate')}
+                  style={[styles.input, styles.dateInput, inputBorder('endDate')]}
                   onFocus={() => setFocusedField('endDate')}
                   onBlur={() => setFocusedField(null)}
-                />
+                  accessibilityRole="button"
+                  accessibilityLabel="Pick end date"
+                >
+                  <Text style={[styles.dateText, !endDate && styles.datePlaceholder]}>
+                    {endDate || 'Pick a date'}
+                  </Text>
+                  <Feather name="calendar" size={18} color="#9ca3af" />
+                </TouchableOpacity>
               </View>
 
               <View style={styles.field}>
@@ -321,6 +383,62 @@ export default function NewTripScreen() {
       </View>
 
       <FullScreenLoader visible={loading} messages={LOADER_MESSAGES_ITINERARY} />
+
+      <Modal
+        visible={pickerField !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPickerField(null)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.modalBackdrop}
+          onPress={() => setPickerField(null)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.pickerCard} onPress={() => {}}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>
+                {pickerField === 'startDate' ? 'Select start date' : 'Select end date'}
+              </Text>
+              <TouchableOpacity onPress={() => setPickerField(null)} accessibilityRole="button" accessibilityLabel="Close date picker">
+                <Feather name="x" size={18} color="#9ca3af" />
+              </TouchableOpacity>
+            </View>
+
+            {pickerField ? (
+              <DateTimePicker
+                value={pickerValue}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                minimumDate={minimumForField(pickerField)}
+                onChange={(_: DateTimePickerEvent, d?: Date) => {
+                  if (!d) return;
+                  setPickerValue(d);
+                }}
+              />
+            ) : null}
+
+            <View style={styles.pickerActions}>
+              <TouchableOpacity
+                style={styles.pickerBtnGhost}
+                onPress={() => setPickerField(null)}
+              >
+                <Text style={styles.pickerBtnGhostText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.pickerBtnPrimary}
+                onPress={() => {
+                  if (!pickerField) return;
+                  commitPickedDate(pickerField, pickerValue);
+                  setPickerField(null);
+                }}
+              >
+                <Text style={styles.pickerBtnPrimaryText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </>
   );
 }
@@ -371,6 +489,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 15, color: '#ffffff',
   },
+  dateInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dateText: { color: '#ffffff', fontSize: 15 },
+  datePlaceholder: { color: '#4b5563' },
   budgetRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   budgetInput: { flex: 1 },
   currencyRow: { flexDirection: 'row', gap: 6 },
@@ -404,4 +529,45 @@ const styles = StyleSheet.create({
   },
   generateBtnDisabled: { opacity: 0.6 },
   generateBtnText: { color: '#ffffff', fontWeight: '700', fontSize: 16 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    padding: 24,
+    justifyContent: 'center',
+  },
+  pickerCard: {
+    backgroundColor: '#13131f',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    padding: 14,
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  pickerTitle: { color: '#ffffff', fontSize: 15, fontWeight: '700' },
+  pickerActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 12,
+  },
+  pickerBtnGhost: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  pickerBtnGhostText: { color: '#9ca3af', fontWeight: '700' },
+  pickerBtnPrimary: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#6366f1',
+  },
+  pickerBtnPrimaryText: { color: '#ffffff', fontWeight: '800' },
 });

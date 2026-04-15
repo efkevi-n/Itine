@@ -38,6 +38,9 @@ export const theme = {
     success: '#22c55e',
     error: '#ef4444',
     warning: '#f59e0b',
+    border: 'rgba(255,255,255,0.10)',
+    divider: 'rgba(255,255,255,0.08)',
+    overlay: 'rgba(0,0,0,0.55)',
   },
   fonts: {
     regular: 14,

@@ -35,8 +35,17 @@ export default function MyTripsScreen() {
     setError(null);
     try {
       const res = await tripsApi.getAll({ page: 1, limit: 50 });
-      const rawList = Array.isArray(res.data) ? res.data : [];
-      setTrips(rawList.map((t) => normalizeTrip(t as Record<string, unknown>)));
+      const payload = res.data as unknown;
+      const rawList: unknown[] = Array.isArray(payload)
+        ? payload
+        : Array.isArray((payload as Record<string, unknown>)?.data)
+          ? (payload as Record<string, unknown>).data as unknown[]
+          : [];
+      setTrips(
+        rawList
+          .map((t) => normalizeTrip(t as Record<string, unknown>))
+          .filter((t) => t.status !== 'CANCELLED')
+      );
     } catch {
       setError('Failed to load trips. Pull to refresh.');
     } finally {
