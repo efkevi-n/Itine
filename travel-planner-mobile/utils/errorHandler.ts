@@ -7,7 +7,6 @@ export function parseApiError(error: unknown): ApiError {
   if (error && typeof error === 'object' && (error as { name?: string }).name === AXIOS_ERR) {
     const ax = error as { response?: { status?: number; data?: { message?: string } }; message?: string };
     const statusCode = ax.response?.status ?? 0;
-    const rawMessage = ax.response?.data?.message ?? ax.message;
     const code = statusCode === 401 ? 'UNAUTHORIZED' : statusCode === 404 ? 'NOT_FOUND' : 'API_ERROR';
     return {
       code,
@@ -24,11 +23,21 @@ export function parseApiError(error: unknown): ApiError {
 
 export function getErrorMessage(error: unknown): string {
   if (error == null) return ERROR_MESSAGES.UNKNOWN;
-  const ax = error as { response?: { status?: number; data?: { message?: string } }; message?: string };
+  const ax = error as { code?: string; response?: { status?: number; data?: { message?: unknown } }; message?: string };
   const status = ax.response?.status;
-  const apiMsg = typeof ax.response?.data?.message === 'string' ? ax.response.data.message : '';
+  const msgRaw = ax.response?.data?.message;
+  const apiMsg = typeof msgRaw === 'string'
+    ? msgRaw
+    : Array.isArray(msgRaw)
+      ? String((msgRaw as unknown[])[0] ?? '')
+      : typeof msgRaw === 'object' && msgRaw !== null
+        ? String(((msgRaw as Record<string, unknown>).message as unknown[] | undefined)?.[0] ?? (msgRaw as Record<string, unknown>).error ?? '')
+        : '';
   const lower = apiMsg.toLowerCase();
 
+  if (ax.code === 'ECONNABORTED' || (typeof ax.message === 'string' && ax.message.toLowerCase().includes('timeout'))) {
+    return ERROR_MESSAGES.TIMEOUT;
+  }
   if (status === 0 || ax.message === 'Network Error' || (typeof ax.message === 'string' && ax.message.toLowerCase().includes('network'))) {
     return ERROR_MESSAGES.NETWORK;
   }

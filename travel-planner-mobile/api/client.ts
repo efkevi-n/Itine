@@ -3,7 +3,7 @@ import { getAccessToken } from '@/utils/auth';
 import { clearTokens } from '@/utils/auth';
 
 const BASE_URL = 'https://backend-mobile-production-4d32.up.railway.app';
-const DEFAULT_TIMEOUT = 10000;
+const DEFAULT_TIMEOUT = 30000;
 
 const baseURL = process.env.EXPO_PUBLIC_API_URL || BASE_URL;
 const normalizedBase = baseURL.startsWith('http') ? baseURL : `https://${baseURL}`;

@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { itineraryApi } from '@/api/itinerary';
+import { getErrorMessage } from '@/utils/errorHandler';
 import { tripsApi } from '@/api/trips';
 import { BudgetPieChart } from '@/components/BudgetPieChart';
 import { BudgetSummaryCards } from '@/components/BudgetSummaryCards';
@@ -57,8 +58,7 @@ export default function BudgetBreakdownScreen() {
         : undefined;
       setData(mapCostBreakdownToView(breakdownList, totalBudget, currency));
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string } }; message?: string };
-      setError(err?.response?.data?.message ?? err?.message ?? 'Failed to load budget.');
+      setError(getErrorMessage(e) || 'Failed to load budget.');
     } finally {
       setLoading(false);
     }
