@@ -71,51 +71,77 @@ export default function MyTripsScreen() {
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
-      }
-    >
-      <Text style={styles.title}>My Trips</Text>
-      {error ? <ErrorToast message={error} onDismiss={() => setError(null)} /> : null}
-      {trips.length === 0 && !error ? (
-        <View style={styles.emptyBox}>
-          <Text style={styles.emptyText}>No trips yet. Plan one from Home!</Text>
-        </View>
-      ) : (
-        trips.map((trip) => (
-          <TripCard
-            key={trip.id}
-            trip={trip}
-            onPress={() => router.push({ pathname: '/trip-detail', params: { tripId: trip.id } })}
-          />
-        ))
-      )}
-      <View style={styles.spacer} />
-    </ScrollView>
+    <View style={styles.screen}>
+      <View style={styles.glowOrbTop} />
+      <View style={styles.glowOrbBottom} />
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.eyebrow}>MY TRIPS</Text>
+        <Text style={styles.title}>Your Journeys</Text>
+        <View style={styles.divider} />
+
+        {error ? <ErrorToast message={error} onDismiss={() => setError(null)} /> : null}
+
+        {trips.length === 0 && !error ? (
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyText}>No trips yet. Plan one from Home!</Text>
+          </View>
+        ) : (
+          trips.map((trip) => (
+            <TripCard
+              key={trip.id}
+              trip={trip}
+              onPress={() => router.push({ pathname: '/trip-detail', params: { tripId: trip.id } })}
+            />
+          ))
+        )}
+        <View style={styles.spacer} />
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.background, padding: 24 },
+  screen: { flex: 1, backgroundColor: theme.colors.background },
+  glowOrbTop: {
+    position: 'absolute', top: -100, right: -80,
+    width: 320, height: 320, borderRadius: 999,
+    backgroundColor: 'rgba(99,102,241,0.08)',
+  },
+  glowOrbBottom: {
+    position: 'absolute', bottom: -120, left: -80,
+    width: 280, height: 280, borderRadius: 999,
+    backgroundColor: 'rgba(99,102,241,0.06)',
+  },
+  scroll: { flex: 1 },
+  content: { paddingHorizontal: 24, paddingBottom: 60 },
+  eyebrow: {
+    fontSize: 10, color: '#4b5563', letterSpacing: 1.5,
+    textTransform: 'uppercase', fontWeight: '600',
+    marginTop: 60, marginBottom: 8,
+  },
   title: {
-    fontSize: theme.fonts.title,
-    fontWeight: 'bold',
-    color: theme.colors.text,
-    marginTop: 60,
-    marginBottom: 24,
+    fontSize: 26, fontWeight: '700',
+    color: theme.colors.text, marginBottom: 16, letterSpacing: -0.3,
+  },
+  divider: {
+    height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginBottom: 24,
   },
   emptyBox: {
     backgroundColor: theme.colors.card,
-    borderRadius: theme.radius.md,
-    padding: 24,
-    alignItems: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
+    borderRadius: theme.radius.md, padding: 24, alignItems: 'center',
   },
   emptyText: {
     fontSize: theme.fonts.medium,
-    color: theme.colors.subtext,
-    textAlign: 'center',
+    color: theme.colors.subtext, textAlign: 'center',
   },
   spacer: { height: 40 },
 });

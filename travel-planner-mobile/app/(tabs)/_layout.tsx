@@ -1,18 +1,13 @@
 import { Tabs, useFocusEffect } from 'expo-router';
 import React, { useState, useCallback } from 'react';
 import { View } from 'react-native';
-
 import { HapticTab } from '@/components/haptic-tab';
 import { UnreadBadge } from '@/components/UnreadBadge';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { getUnreadCount } from '@/utils/notificationStore';
 import { theme } from '@/constants/theme';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-  const tintColor = theme.colors.primary;
   const [unreadCount, setUnreadCount] = useState(0);
 
   useFocusEffect(
@@ -24,8 +19,13 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: tintColor,
-        tabBarInactiveTintColor: Colors[colorScheme ?? 'light']?.tabIconDefault ?? theme.colors.subtext,
+        tabBarActiveTintColor: theme.colors.primary,
+        tabBarInactiveTintColor: theme.colors.subtext,
+        tabBarStyle: {
+          backgroundColor: '#0d0d14',
+          borderTopColor: 'rgba(255,255,255,0.06)',
+          borderTopWidth: 1,
+        },
         headerShown: false,
         tabBarButton: HapticTab,
       }}

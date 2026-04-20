@@ -115,7 +115,9 @@ export default function ProfileScreen() {
 
   if (loading && !profile) {
     return (
-      <View style={[styles.container, styles.centered]}>
+      <View style={[styles.screen, styles.centered]}>
+        <View style={styles.glowOrbTop} />
+        <View style={styles.glowOrbBottom} />
         <ActivityIndicator size="large" color={theme.colors.primary} />
         <Text style={styles.loadingText}>Loading profile...</Text>
       </View>
@@ -124,7 +126,9 @@ export default function ProfileScreen() {
 
   if (error && !profile) {
     return (
-      <View style={[styles.container, styles.centered]}>
+      <View style={[styles.screen, styles.centered]}>
+        <View style={styles.glowOrbTop} />
+        <View style={styles.glowOrbBottom} />
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={loadProfile}>
           <Text style={styles.retryBtnText}>Retry</Text>
@@ -136,40 +140,108 @@ export default function ProfileScreen() {
   const currentProfile = profile ?? { name: '', email: '', phone: '', photoUrl: null };
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <Text style={styles.title}>My Profile</Text>
-      <Text style={styles.subtitle}>Manage your account details</Text>
-      <View style={styles.headerDivider} />
-      <ProfileAvatar photoUrl={currentProfile.photoUrl} name={currentProfile.name} onPress={handlePhotoPress} uploadLoading={uploadLoading} />
-      <ProfileForm name={name} email={currentProfile.email} phone={phone} onChangeName={setName} onChangePhone={setPhone} />
-      {saveError ? <Text style={styles.saveErrorText}>{saveError}</Text> : null}
-      <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saveLoading}>
-        {saveLoading ? <ActivityIndicator color={theme.colors.text} /> : <Text style={styles.saveBtnText}>Save changes</Text>}
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-        <Text style={styles.logoutBtnText}>Log out</Text>
-      </TouchableOpacity>
-      <Text style={styles.version}>{APP_VERSION}</Text>
-      <View style={styles.spacer} />
-    </ScrollView>
+    <View style={styles.screen}>
+      <View style={styles.glowOrbTop} />
+      <View style={styles.glowOrbBottom} />
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.eyebrow}>PROFILE</Text>
+        <Text style={styles.title}>My Profile</Text>
+        <Text style={styles.subtitle}>Manage your account details</Text>
+        <View style={styles.headerDivider} />
+
+        <ProfileAvatar
+          photoUrl={currentProfile.photoUrl}
+          name={currentProfile.name}
+          onPress={handlePhotoPress}
+          uploadLoading={uploadLoading}
+        />
+
+        <ProfileForm
+          name={name}
+          email={currentProfile.email}
+          phone={phone}
+          onChangeName={setName}
+          onChangePhone={setPhone}
+        />
+
+        {saveError ? (
+          <Text style={styles.saveErrorText}>{saveError}</Text>
+        ) : null}
+
+        <TouchableOpacity
+          style={styles.saveBtn}
+          onPress={handleSave}
+          disabled={saveLoading}
+        >
+          {saveLoading ? (
+            <ActivityIndicator color={theme.colors.text} />
+          ) : (
+            <Text style={styles.saveBtnText}>Save changes</Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+          <Text style={styles.logoutBtnText}>Log out</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.version}>{APP_VERSION}</Text>
+        <View style={styles.spacer} />
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.background, paddingHorizontal: 24, paddingTop: 58, paddingBottom: 56 },
+  screen: { flex: 1, backgroundColor: theme.colors.background },
+  glowOrbTop: {
+    position: 'absolute', top: -100, right: -80,
+    width: 320, height: 320, borderRadius: 999,
+    backgroundColor: 'rgba(99,102,241,0.08)',
+  },
+  glowOrbBottom: {
+    position: 'absolute', bottom: -120, left: -80,
+    width: 280, height: 280, borderRadius: 999,
+    backgroundColor: 'rgba(99,102,241,0.06)',
+  },
+  scroll: { flex: 1 },
+  content: { paddingHorizontal: 24, paddingTop: 58, paddingBottom: 56 },
   centered: { justifyContent: 'center', alignItems: 'center' },
-  title: { fontSize: 32, fontWeight: '700', color: theme.colors.text, letterSpacing: -0.5 },
-  subtitle: { color: theme.colors.subtext, marginTop: 8, fontSize: 13 },
-  headerDivider: { height: 1, backgroundColor: theme.colors.divider, marginTop: 18, marginBottom: 24 },
+  eyebrow: {
+    fontSize: 10, color: '#4b5563', letterSpacing: 1.5,
+    textTransform: 'uppercase', fontWeight: '600', marginBottom: 8,
+  },
+  title: { fontSize: 26, fontWeight: '700', color: theme.colors.text, letterSpacing: -0.5 },
+  subtitle: { color: theme.colors.subtext, marginTop: 6, fontSize: 13 },
+  headerDivider: {
+    height: 1, backgroundColor: theme.colors.divider,
+    marginTop: 16, marginBottom: 24,
+  },
   loadingText: { color: theme.colors.subtext, marginTop: 12 },
   errorText: { color: theme.colors.error, textAlign: 'center', marginBottom: 16 },
-  retryBtn: { backgroundColor: theme.colors.primary, padding: 16, borderRadius: theme.radius.md, alignItems: 'center', width: '100%', marginTop: 8 },
-  retryBtnText: { color: theme.colors.text, fontWeight: '800', fontSize: 16 },
+  retryBtn: {
+    backgroundColor: theme.colors.primary, padding: 16,
+    borderRadius: theme.radius.md, alignItems: 'center',
+    width: '100%', marginTop: 8,
+  },
+  retryBtnText: { color: theme.colors.text, fontWeight: '700', fontSize: 16 },
   saveErrorText: { color: theme.colors.error, marginBottom: 8, textAlign: 'center' },
-  saveBtn: { backgroundColor: theme.colors.primary, borderRadius: theme.radius.md, padding: 16, alignItems: 'center', marginBottom: 12 },
-  saveBtnText: { color: theme.colors.text, fontWeight: '800', fontSize: 16 },
-  logoutBtn: { backgroundColor: theme.colors.error, borderRadius: theme.radius.md, padding: 16, alignItems: 'center', marginBottom: 24 },
-  logoutBtnText: { color: theme.colors.text, fontWeight: '800', fontSize: 16 },
+  saveBtn: {
+    backgroundColor: theme.colors.primary, borderRadius: theme.radius.md,
+    height: 54, alignItems: 'center', justifyContent: 'center', marginBottom: 12,
+  },
+  saveBtnText: { color: theme.colors.text, fontWeight: '700', fontSize: 16 },
+  logoutBtn: {
+    backgroundColor: 'rgba(239,68,68,0.08)',
+    borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)',
+    borderRadius: theme.radius.md, height: 54,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 24,
+  },
+  logoutBtnText: { color: '#f87171', fontWeight: '700', fontSize: 16 },
   version: { color: theme.colors.subtext, fontSize: 12, textAlign: 'center' },
   spacer: { height: 40 },
 });
