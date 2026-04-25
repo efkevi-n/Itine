@@ -447,9 +447,25 @@ export default function HomeScreen() {
           <SkeletonLoader />
         ) : trips.length === 0 ? (
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>
-              No trips yet, plan your first one!
+            <Feather
+              name="map"
+              size={64}
+              color="rgba(99,102,241,0.3)"
+              style={styles.emptyIcon}
+            />
+            <Text style={styles.emptyTitle}>No trips yet</Text>
+            <Text style={styles.emptySubtitle}>
+              Plan your first adventure and it will appear here
             </Text>
+            <TouchableOpacity
+              style={styles.emptyButton}
+              onPress={async () => {
+                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push("/new-trip");
+              }}
+            >
+              <Text style={styles.emptyButtonText}>Plan a Trip</Text>
+            </TouchableOpacity>
           </View>
         ) : filteredTrips.length === 0 ? (
           <View style={styles.emptyBox}>
@@ -705,8 +721,37 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.07)",
     borderRadius: 12,
-    padding: 24,
+    padding: 40,
     alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyIcon: {
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#ffffff",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: "#9ca3af",
+    marginBottom: 24,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  emptyButton: {
+    backgroundColor: "#6366f1",
+    borderRadius: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  emptyButtonText: {
+    color: "#ffffff",
+    fontWeight: "700",
+    fontSize: 14,
   },
   emptyText: { color: "#4b5563", fontSize: 16, textAlign: "center" },
   card: {
