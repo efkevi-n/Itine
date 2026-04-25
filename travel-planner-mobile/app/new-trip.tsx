@@ -6,6 +6,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import * as Haptics from 'expo-haptics';
 import { api } from '@/api/client';
 import { DestinationSearch } from '@/components/DestinationSearch';
 import { FullScreenLoader } from '@/components/FullScreenLoader';
@@ -108,6 +109,7 @@ export default function NewTripScreen() {
   };
 
   const handleGenerate = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setError('');
     if (!isOnline) {
       setError(OFFLINE_MESSAGES.cannotCreateTrip);
@@ -247,7 +249,10 @@ export default function NewTripScreen() {
             keyboardShouldPersistTaps="handled"
           >
             <Animated.View style={{ opacity: fadeAnim }}>
-              <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} disabled={disabled}>
+              <TouchableOpacity style={styles.backBtn} onPress={async () => {
+                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.back();
+              }} disabled={disabled}>
                 <Feather name="chevron-left" size={18} color="#6366f1" />
                 <Text style={styles.backText}>Back</Text>
               </TouchableOpacity>
@@ -294,7 +299,10 @@ export default function NewTripScreen() {
                 <TouchableOpacity
                   activeOpacity={0.9}
                   disabled={disabled}
-                  onPress={() => openDatePicker('startDate')}
+                  onPress={async () => {
+                    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    openDatePicker('startDate');
+                  }}
                   style={[styles.input, styles.dateInput, inputBorder('startDate')]}
                   onFocus={() => setFocusedField('startDate')}
                   onBlur={() => setFocusedField(null)}
@@ -313,7 +321,10 @@ export default function NewTripScreen() {
                 <TouchableOpacity
                   activeOpacity={0.9}
                   disabled={disabled}
-                  onPress={() => openDatePicker('endDate')}
+                  onPress={async () => {
+                    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    openDatePicker('endDate');
+                  }}
                   style={[styles.input, styles.dateInput, inputBorder('endDate')]}
                   onFocus={() => setFocusedField('endDate')}
                   onBlur={() => setFocusedField(null)}

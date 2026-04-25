@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { userApi } from "@/api/user";
 import { tripsApi } from "@/api/trips";
 import { TripCard, type TripCardData } from "@/components/TripCard";
@@ -343,7 +344,10 @@ export default function HomeScreen() {
           </View>
           <TouchableOpacity
             style={styles.avatar}
-            onPress={() => router.push("/(tabs)/profile")}
+            onPress={async () => {
+              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/(tabs)/profile");
+            }}
             activeOpacity={0.7}
           >
             <Text style={styles.avatarText}>{userInitials}</Text>
@@ -374,7 +378,10 @@ export default function HomeScreen() {
 
         <TouchableOpacity
           style={styles.ctaButton}
-          onPress={() => router.push("/new-trip")}
+          onPress={async () => {
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            router.push("/new-trip");
+          }}
           activeOpacity={0.9}
         >
           <Animated.View
@@ -461,12 +468,13 @@ export default function HomeScreen() {
                   borderLeftColor: STATUS_COLORS[trip.status] ?? "#6366f1",
                 },
               ]}
-              onPress={() =>
+              onPress={async () => {
+                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push({
                   pathname: "/trip-detail",
                   params: { tripId: trip.id },
-                })
-              }
+                });
+              }}
               activeOpacity={0.88}
             >
               <View style={styles.cardHeader}>
