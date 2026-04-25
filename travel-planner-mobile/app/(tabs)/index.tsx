@@ -152,6 +152,7 @@ export default function HomeScreen() {
       setUserName(name);
 
       const payload = tripsRes.data as unknown;
+      console.log('TRIPS API RESPONSE:', JSON.stringify(payload, null, 2));
       const list: Record<string, unknown>[] = Array.isArray(payload)
         ? payload
         : Array.isArray((payload as Record<string, unknown>)?.data)
