@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Animated,
+  TextInput,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -93,6 +94,8 @@ export default function HomeScreen() {
   const { isOnline } = useConnectivity();
   const [userName, setUserName] = useState<string>("");
   const [trips, setTrips] = useState<TripCardData[]>([]);
+  const [filteredTrips, setFilteredTrips] = useState<TripCardData[]>([]);
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [tripsLoading, setTripsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -154,6 +157,8 @@ export default function HomeScreen() {
         normalizeTrip(t),
       );
       setTrips(normalized);
+      setFilteredTrips(normalized);
+      setSearchQuery("");
       for (const t of list as Record<string, unknown>[]) {
         const id = String(t?.id ?? t?.tripId ?? "");
         if (id) cacheTrip(id, t).catch(() => {});
@@ -177,6 +182,7 @@ export default function HomeScreen() {
         }
         if (cached.length > 0) {
           setTrips(cached);
+          setFilteredTrips(cached);
           setError(null);
         } else setError("Offline. No cached trips.");
       } else {
@@ -215,6 +221,20 @@ export default function HomeScreen() {
     setRefreshing(true);
     await checkAuthAndFetch();
   };
+
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query);
+    if (query.trim() === "") {
+      setFilteredTrips(trips);
+    } else {
+      const lowerQuery = query.toLowerCase();
+      setFilteredTrips(
+        trips.filter((t) =>
+          t.destination.toLowerCase().includes(lowerQuery),
+        ),
+      );
+    }
+  }, [trips]);
 
   const userInitials = userName ? userName.slice(0, 2).toUpperCase() : "TR";
   const quickStats = [
@@ -266,9 +286,13 @@ export default function HomeScreen() {
             <Text style={styles.greeting}>{getGreeting()}</Text>
             <Text style={styles.userName}>{userName || "Traveler"}</Text>
           </View>
-          <View style={styles.avatar}>
+          <TouchableOpacity
+            style={styles.avatar}
+            onPress={() => router.push("/(tabs)/profile")}
+            activeOpacity={0.7}
+          >
             <Text style={styles.avatarText}>{userInitials}</Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.searchBar}>
@@ -278,7 +302,13 @@ export default function HomeScreen() {
             color="#4b5563"
             style={styles.searchIcon}
           />
-          <Text style={styles.searchPlaceholder}>Search destinations...</Text>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search destinations..."
+            placeholderTextColor="#4b5563"
+            value={searchQuery}
+            onChangeText={handleSearch}
+          />
           <TouchableOpacity
             style={styles.filterBtn}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -361,8 +391,14 @@ export default function HomeScreen() {
               No trips yet, plan your first one!
             </Text>
           </View>
+        ) : filteredTrips.length === 0 ? (
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyText}>
+              No trips match your search.
+            </Text>
+          </View>
         ) : (
-          trips.map((trip) => (
+          filteredTrips.map((trip) => (
             <TouchableOpacity
               key={trip.id}
               style={[
@@ -520,7 +556,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   searchIcon: { marginRight: 10 },
-  searchPlaceholder: { flex: 1, color: "#4b5563", fontSize: 15 },
+  searchInput: { flex: 1, color: "#ffffff", fontSize: 15 },
   filterBtn: { padding: 4, justifyContent: "center", alignItems: "center" },
   ctaButton: {
     width: "100%",
