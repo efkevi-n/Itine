@@ -151,8 +151,12 @@ export default function HomeScreen() {
         "Traveler";
       setUserName(name);
 
-      const rawList = tripsRes.data;
-      const list = Array.isArray(rawList) ? rawList : [];
+      const payload = tripsRes.data as unknown;
+      const list: Record<string, unknown>[] = Array.isArray(payload)
+        ? payload
+        : Array.isArray((payload as Record<string, unknown>)?.data)
+          ? (payload as Record<string, unknown>).data as Record<string, unknown>[]
+          : [];
       const normalized = list.map((t: Record<string, unknown>) =>
         normalizeTrip(t),
       );
