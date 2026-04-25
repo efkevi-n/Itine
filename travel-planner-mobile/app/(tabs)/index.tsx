@@ -89,6 +89,56 @@ const statFeatherName = (label: string): keyof typeof Feather.glyphMap => {
   return "check-circle";
 };
 
+function SkeletonLoader() {
+  const skeletons = [0, 1, 2];
+  return (
+    <>
+      {skeletons.map((idx) => (
+        <SkeletonCard key={idx} />
+      ))}
+    </>
+  );
+}
+
+function SkeletonCard() {
+  const pulseAnim = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 0.7,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0.3,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+      ]),
+    ).start();
+  }, [pulseAnim]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.skeletonCard,
+        { opacity: pulseAnim },
+      ]}
+    >
+      <View style={styles.skeletonHeader}>
+        <View style={styles.skeletonLine} />
+        <View style={styles.skeletonBadge} />
+      </View>
+      <View style={styles.skeletonContent}>
+        <View style={styles.skeletonLineSmall} />
+        <View style={styles.skeletonLineSmall} />
+      </View>
+    </Animated.View>
+  );
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const { isOnline } = useConnectivity();
@@ -387,9 +437,7 @@ export default function HomeScreen() {
             <Text style={styles.errorText}>{error}</Text>
           </View>
         ) : tripsLoading && trips.length === 0 ? (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator color="#6366f1" />
-          </View>
+          <SkeletonLoader />
         ) : trips.length === 0 ? (
           <View style={styles.emptyBox}>
             <Text style={styles.emptyText}>
@@ -731,5 +779,41 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(99,102,241,0.12)",
     borderWidth: 1,
     borderColor: "rgba(99,102,241,0.25)",
+  },
+  skeletonCard: {
+    backgroundColor: "#13131f",
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    padding: 16,
+    overflow: "hidden",
+  },
+  skeletonHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  skeletonLine: {
+    height: 18,
+    width: "60%",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 8,
+  },
+  skeletonBadge: {
+    height: 18,
+    width: "25%",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 8,
+  },
+  skeletonContent: {
+    gap: 8,
+  },
+  skeletonLineSmall: {
+    height: 12,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 6,
+    marginBottom: 8,
   },
 });
