@@ -43,6 +43,13 @@ function formatDateYYYYMMDD(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
+function formatDateDisplay(isoString: string): string {
+  const d = parseDate(isoString);
+  if (!d) return '';
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${monthNames[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
 function validate(
   destination: string,
   origin: string,
@@ -295,7 +302,7 @@ export default function NewTripScreen() {
                   accessibilityLabel="Pick start date"
                 >
                   <Text style={[styles.dateText, !startDate && styles.datePlaceholder]}>
-                    {startDate || 'Pick a date'}
+                    {startDate ? formatDateDisplay(startDate) : 'Pick a date'}
                   </Text>
                   <Feather name="calendar" size={18} color="#9ca3af" />
                 </TouchableOpacity>
@@ -314,7 +321,7 @@ export default function NewTripScreen() {
                   accessibilityLabel="Pick end date"
                 >
                   <Text style={[styles.dateText, !endDate && styles.datePlaceholder]}>
-                    {endDate || 'Pick a date'}
+                    {endDate ? formatDateDisplay(endDate) : 'Pick a date'}
                   </Text>
                   <Feather name="calendar" size={18} color="#9ca3af" />
                 </TouchableOpacity>
