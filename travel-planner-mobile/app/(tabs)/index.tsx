@@ -16,8 +16,10 @@ import * as Haptics from "expo-haptics";
 import { userApi } from "@/api/user";
 import { tripsApi } from "@/api/trips";
 import { TripCard, type TripCardData } from "@/components/TripCard";
+import { Toast } from "@/components/Toast";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { useConnectivity } from "@/hooks/useConnectivity";
+import { useToastStore } from "@/utils/toast";
 import { getAccessToken, clearTokens } from "@/utils/auth";
 import {
   cacheTrip,
@@ -143,6 +145,10 @@ function SkeletonCard() {
 export default function HomeScreen() {
   const router = useRouter();
   const { isOnline } = useConnectivity();
+  const toastMessage = useToastStore((state) => state.message);
+  const toastType = useToastStore((state) => state.type);
+  const toastVisible = useToastStore((state) => state.visible);
+  const hideToast = useToastStore((state) => state.hide);
   const [userName, setUserName] = useState<string>("");
   const [trips, setTrips] = useState<TripCardData[]>([]);
   const [filteredTrips, setFilteredTrips] = useState<TripCardData[]>([]);
@@ -171,6 +177,13 @@ export default function HomeScreen() {
     pulse.start();
     return () => pulse.stop();
   }, [pulseAnim]);
+
+  useEffect(() => {
+    if (error) {
+      useToastStore.getState().show(error, "error", 4000);
+      setError(null);
+    }
+  }, [error]);
 
   const checkAuthAndFetch = useCallback(async () => {
     const token = await getAccessToken();
@@ -323,6 +336,13 @@ export default function HomeScreen() {
         pointerEvents="none"
       />
 
+      <Toast
+        visible={toastVisible}
+        message={toastMessage}
+        type={toastType}
+        onDismiss={hideToast}
+      />
+
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.contentContainer}
@@ -439,11 +459,7 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitle}>Your Trips</Text>
         </View>
 
-        {error ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        ) : tripsLoading && trips.length === 0 ? (
+        {tripsLoading && trips.length === 0 ? (
           <SkeletonLoader />
         ) : trips.length === 0 ? (
           <View style={styles.emptyBox}>
