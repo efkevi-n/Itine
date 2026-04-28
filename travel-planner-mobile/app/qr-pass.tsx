@@ -7,6 +7,7 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import QRCode from 'react-native-qrcode-svg';
 import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { trippassApi } from '@/api/trippass';
 import { userApi } from '@/api/user';
 import { tripsApi } from '@/api/trips';
@@ -294,10 +295,16 @@ export default function QRPassScreen() {
         </View>
         <Text style={styles.authTitle}>Unable to Load Pass</Text>
         <Text style={styles.authSubtitle}>{loadError}</Text>
-        <TouchableOpacity style={styles.authBtn} onPress={loadData}>
+        <TouchableOpacity style={styles.authBtn} onPress={async () => {
+          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          loadData();
+        }}>
           <Text style={styles.authBtnText}>Retry</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backLinkBtn}>
+        <TouchableOpacity onPress={async () => {
+          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          router.back();
+        }} style={styles.backLinkBtn}>
           <Text style={styles.backLink}>Go Back</Text>
         </TouchableOpacity>
       </View>
@@ -317,7 +324,10 @@ export default function QRPassScreen() {
         scrollEventThrottle={16}
       >
         <Animated.View style={{ opacity: fadeAnim }}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backBtn} onPress={async () => {
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.back();
+          }}>
             <Feather name="chevron-left" size={18} color="#6366f1" />
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>

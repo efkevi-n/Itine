@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -8,14 +8,18 @@ import {
   ActivityIndicator,
   RefreshControl,
   Animated,
+  TextInput,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { userApi } from "@/api/user";
 import { tripsApi } from "@/api/trips";
 import { TripCard, type TripCardData } from "@/components/TripCard";
+import { Toast } from "@/components/Toast";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { useConnectivity } from "@/hooks/useConnectivity";
+import { useToastStore } from "@/utils/toast";
 import { getAccessToken, clearTokens } from "@/utils/auth";
 import {
   cacheTrip,
@@ -88,11 +92,67 @@ const statFeatherName = (label: string): keyof typeof Feather.glyphMap => {
   return "check-circle";
 };
 
+function SkeletonLoader() {
+  const skeletons = [0, 1, 2];
+  return (
+    <>
+      {skeletons.map((idx) => (
+        <SkeletonCard key={idx} />
+      ))}
+    </>
+  );
+}
+
+function SkeletonCard() {
+  const pulseAnim = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 0.7,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0.3,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+      ]),
+    ).start();
+  }, [pulseAnim]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.skeletonCard,
+        { opacity: pulseAnim },
+      ]}
+    >
+      <View style={styles.skeletonHeader}>
+        <View style={styles.skeletonLine} />
+        <View style={styles.skeletonBadge} />
+      </View>
+      <View style={styles.skeletonContent}>
+        <View style={styles.skeletonLineSmall} />
+        <View style={styles.skeletonLineSmall} />
+      </View>
+    </Animated.View>
+  );
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const { isOnline } = useConnectivity();
+  const toastMessage = useToastStore((state) => state.message);
+  const toastType = useToastStore((state) => state.type);
+  const toastVisible = useToastStore((state) => state.visible);
+  const hideToast = useToastStore((state) => state.hide);
   const [userName, setUserName] = useState<string>("");
   const [trips, setTrips] = useState<TripCardData[]>([]);
+  const [filteredTrips, setFilteredTrips] = useState<TripCardData[]>([]);
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [tripsLoading, setTripsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -117,6 +177,13 @@ export default function HomeScreen() {
     pulse.start();
     return () => pulse.stop();
   }, [pulseAnim]);
+
+  useEffect(() => {
+    if (error) {
+      useToastStore.getState().show(error, "error", 4000);
+      setError(null);
+    }
+  }, [error]);
 
   const checkAuthAndFetch = useCallback(async () => {
     const token = await getAccessToken();
@@ -148,12 +215,19 @@ export default function HomeScreen() {
         "Traveler";
       setUserName(name);
 
-      const rawList = tripsRes.data;
-      const list = Array.isArray(rawList) ? rawList : [];
+      const payload = tripsRes.data as unknown;
+      console.log('TRIPS API RESPONSE:', JSON.stringify(payload, null, 2));
+      const list: Record<string, unknown>[] = Array.isArray(payload)
+        ? payload
+        : Array.isArray((payload as Record<string, unknown>)?.data)
+          ? (payload as Record<string, unknown>).data as Record<string, unknown>[]
+          : [];
       const normalized = list.map((t: Record<string, unknown>) =>
         normalizeTrip(t),
       );
       setTrips(normalized);
+      setFilteredTrips(normalized);
+      setSearchQuery("");
       for (const t of list as Record<string, unknown>[]) {
         const id = String(t?.id ?? t?.tripId ?? "");
         if (id) cacheTrip(id, t).catch(() => {});
@@ -177,6 +251,7 @@ export default function HomeScreen() {
         }
         if (cached.length > 0) {
           setTrips(cached);
+          setFilteredTrips(cached);
           setError(null);
         } else setError("Offline. No cached trips.");
       } else {
@@ -216,6 +291,20 @@ export default function HomeScreen() {
     await checkAuthAndFetch();
   };
 
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query);
+    if (query.trim() === "") {
+      setFilteredTrips(trips);
+    } else {
+      const lowerQuery = query.toLowerCase();
+      setFilteredTrips(
+        trips.filter((t) =>
+          t.destination.toLowerCase().includes(lowerQuery),
+        ),
+      );
+    }
+  }, [trips]);
+
   const userInitials = userName ? userName.slice(0, 2).toUpperCase() : "TR";
   const quickStats = [
     { label: "Total Trips", value: trips.length, accent: "#3b82f6" },
@@ -247,6 +336,13 @@ export default function HomeScreen() {
         pointerEvents="none"
       />
 
+      <Toast
+        visible={toastVisible}
+        message={toastMessage}
+        type={toastType}
+        onDismiss={hideToast}
+      />
+
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.contentContainer}
@@ -266,9 +362,16 @@ export default function HomeScreen() {
             <Text style={styles.greeting}>{getGreeting()}</Text>
             <Text style={styles.userName}>{userName || "Traveler"}</Text>
           </View>
-          <View style={styles.avatar}>
+          <TouchableOpacity
+            style={styles.avatar}
+            onPress={async () => {
+              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/(tabs)/profile");
+            }}
+            activeOpacity={0.7}
+          >
             <Text style={styles.avatarText}>{userInitials}</Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.searchBar}>
@@ -278,7 +381,13 @@ export default function HomeScreen() {
             color="#4b5563"
             style={styles.searchIcon}
           />
-          <Text style={styles.searchPlaceholder}>Search destinations...</Text>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search destinations..."
+            placeholderTextColor="#4b5563"
+            value={searchQuery}
+            onChangeText={handleSearch}
+          />
           <TouchableOpacity
             style={styles.filterBtn}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -289,7 +398,10 @@ export default function HomeScreen() {
 
         <TouchableOpacity
           style={styles.ctaButton}
-          onPress={() => router.push("/new-trip")}
+          onPress={async () => {
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            router.push("/new-trip");
+          }}
           activeOpacity={0.9}
         >
           <Animated.View
@@ -347,22 +459,38 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitle}>Your Trips</Text>
         </View>
 
-        {error ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        ) : tripsLoading && trips.length === 0 ? (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator color="#6366f1" />
-          </View>
+        {tripsLoading && trips.length === 0 ? (
+          <SkeletonLoader />
         ) : trips.length === 0 ? (
           <View style={styles.emptyBox}>
+            <Feather
+              name="map"
+              size={64}
+              color="rgba(99,102,241,0.3)"
+              style={styles.emptyIcon}
+            />
+            <Text style={styles.emptyTitle}>No trips yet</Text>
+            <Text style={styles.emptySubtitle}>
+              Plan your first adventure and it will appear here
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyButton}
+              onPress={async () => {
+                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push("/new-trip");
+              }}
+            >
+              <Text style={styles.emptyButtonText}>Plan a Trip</Text>
+            </TouchableOpacity>
+          </View>
+        ) : filteredTrips.length === 0 ? (
+          <View style={styles.emptyBox}>
             <Text style={styles.emptyText}>
-              No trips yet, plan your first one!
+              No trips match your search.
             </Text>
           </View>
         ) : (
-          trips.map((trip) => (
+          filteredTrips.map((trip) => (
             <TouchableOpacity
               key={trip.id}
               style={[
@@ -372,12 +500,13 @@ export default function HomeScreen() {
                   borderLeftColor: STATUS_COLORS[trip.status] ?? "#6366f1",
                 },
               ]}
-              onPress={() =>
+              onPress={async () => {
+                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push({
                   pathname: "/trip-detail",
                   params: { tripId: trip.id },
-                })
-              }
+                });
+              }}
               activeOpacity={0.88}
             >
               <View style={styles.cardHeader}>
@@ -520,7 +649,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   searchIcon: { marginRight: 10 },
-  searchPlaceholder: { flex: 1, color: "#4b5563", fontSize: 15 },
+  searchInput: { flex: 1, color: "#ffffff", fontSize: 15 },
   filterBtn: { padding: 4, justifyContent: "center", alignItems: "center" },
   ctaButton: {
     width: "100%",
@@ -608,8 +737,37 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.07)",
     borderRadius: 12,
-    padding: 24,
+    padding: 40,
     alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyIcon: {
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#ffffff",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: "#9ca3af",
+    marginBottom: 24,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  emptyButton: {
+    backgroundColor: "#6366f1",
+    borderRadius: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  emptyButtonText: {
+    color: "#ffffff",
+    fontWeight: "700",
+    fontSize: 14,
   },
   emptyText: { color: "#4b5563", fontSize: 16, textAlign: "center" },
   card: {
@@ -690,5 +848,41 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(99,102,241,0.12)",
     borderWidth: 1,
     borderColor: "rgba(99,102,241,0.25)",
+  },
+  skeletonCard: {
+    backgroundColor: "#13131f",
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    padding: 16,
+    overflow: "hidden",
+  },
+  skeletonHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  skeletonLine: {
+    height: 18,
+    width: "60%",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 8,
+  },
+  skeletonBadge: {
+    height: 18,
+    width: "25%",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 8,
+  },
+  skeletonContent: {
+    gap: 8,
+  },
+  skeletonLineSmall: {
+    height: 12,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 6,
+    marginBottom: 8,
   },
 });

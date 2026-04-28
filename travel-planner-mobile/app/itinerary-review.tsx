@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { tripsApi } from '@/api/trips';
 import { itineraryApi } from '@/api/itinerary';
 import { formatTripDateRange } from '@/utils/dateFormat';
@@ -313,6 +314,7 @@ export default function ItineraryReviewScreen() {
   }, [isGenerating, tripId, loadData]);
 
   const handleConfirm = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setConfirmError(null);
     if (!tripId) { router.replace('/(tabs)'); return; }
     setConfirmLoading(true);
@@ -396,7 +398,10 @@ export default function ItineraryReviewScreen() {
         <Animated.View style={{ opacity: fadeAnim }}>
           <OfflineBanner visible={!isOnline} />
 
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.7}>
+          <TouchableOpacity onPress={async () => {
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.back();
+          }} style={styles.backButton} activeOpacity={0.7}>
             <Feather name="chevron-left" size={22} color="#6366f1" />
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
