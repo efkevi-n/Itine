@@ -1,3 +1,23 @@
+/** Expo-style light/dark maps for `useThemeColor` and template UI. */
+export const Colors = {
+  light: {
+    text: '#11181C',
+    background: '#ffffff',
+    tint: '#6366f1',
+    icon: '#687076',
+    tabIconDefault: '#687076',
+    tabIconSelected: '#6366f1',
+  },
+  dark: {
+    text: '#ffffff',
+    background: '#0d0d14',
+    tint: '#6366f1',
+    icon: '#9ca3af',
+    tabIconDefault: '#9ca3af',
+    tabIconSelected: '#6366f1',
+  },
+};
+
 export const theme = {
   colors: {
     primary: '#6366f1',

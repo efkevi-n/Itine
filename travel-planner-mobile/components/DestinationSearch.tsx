@@ -4,11 +4,9 @@ import {
   StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { fetchPlaceSuggestions } from '@/api/places';
-import { getRecentSearches, saveRecentSearch } from '@/utils/recentSearches';
 import {
   POPULAR_DESTINATIONS,
   AUTOCOMPLETE_DEBOUNCE_MS,
-  MAX_RECENT_SEARCHES,
   AUTOCOMPLETE_SUGGESTIONS_LIMIT,
 } from '@/constants/destinations';
 import type { DestinationSuggestion } from '@/types/destination';
@@ -31,35 +29,25 @@ export function DestinationSearch({
 }: DestinationSearchProps) {
   const [input, setInput] = useState(value);
   const [suggestions, setSuggestions] = useState<DestinationSuggestion[]>([]);
-  const [recent, setRecent] = useState<{ city: string; country: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [showList, setShowList] = useState(false);
-
-  const loadRecent = useCallback(async () => {
-    const list = await getRecentSearches();
-    setRecent(list.map((r) => ({ city: r.city, country: r.country })));
-  }, []);
 
   useEffect(() => {
     setInput(value);
   }, [value]);
 
   useEffect(() => {
-    loadRecent();
-  }, [loadRecent]);
-
-  useEffect(() => {
     if (!input.trim()) {
       setSuggestions([]);
-      setShowList(true);
+      setShowList(false);
       return;
     }
+    setShowList(true);
     const t = setTimeout(async () => {
       setLoading(true);
       try {
         const list = await fetchPlaceSuggestions(input.trim(), AUTOCOMPLETE_SUGGESTIONS_LIMIT);
         setSuggestions(list);
-        setShowList(true);
       } catch {
         setSuggestions([]);
       } finally {
@@ -70,20 +58,29 @@ export function DestinationSearch({
   }, [input]);
 
   const handleSelect = useCallback(
-    async (city: string, country: string) => {
+    (city: string, country: string) => {
       onSelect(city, country);
       setInput(`${city}, ${country}`);
       setShowList(false);
       setSuggestions([]);
-      await saveRecentSearch({ city, country });
-      loadRecent();
     },
-    [onSelect, loadRecent]
+    [onSelect]
   );
 
-  const showPopular = !input.trim() && showList;
-  const showRecent = showPopular && recent.length > 0;
-  const showAutocomplete = input.trim().length > 0 && showList && suggestions.length > 0;
+  const query = input.trim().toLowerCase();
+  const suggestionKeys = new Set(
+    suggestions.map((s) => `${s.city.toLowerCase()}|${s.country.toLowerCase()}`)
+  );
+  const filteredPopular = query
+    ? POPULAR_DESTINATIONS.filter((d) => {
+        const hay = `${d.city} ${d.country}`.toLowerCase();
+        const key = `${d.city.toLowerCase()}|${d.country.toLowerCase()}`;
+        return hay.includes(query) && !suggestionKeys.has(key);
+      })
+    : [];
+
+  const showPopular = query.length > 0 && showList && filteredPopular.length > 0;
+  const showAutocomplete = query.length > 0 && showList && suggestions.length > 0;
 
   return (
     <View style={styles.wrapper}>
@@ -95,7 +92,9 @@ export function DestinationSearch({
           placeholderTextColor={theme.colors.subtext}
           value={input}
           onChangeText={setInput}
-          onFocus={() => setShowList(true)}
+          onFocus={() => {
+            if (input.trim()) setShowList(true);
+          }}
           editable={editable}
         />
         {loading ? (
@@ -106,39 +105,6 @@ export function DestinationSearch({
           />
         ) : null}
       </View>
-      {showRecent ? (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent</Text>
-          {recent.slice(0, MAX_RECENT_SEARCHES).map((r, i) => (
-            <TouchableOpacity
-              key={`${r.city}-${r.country}-${i}`}
-              style={styles.suggestionRow}
-              onPress={() => handleSelect(r.city, r.country)}
-            >
-              <Text style={styles.suggestionText}>
-                {r.city}, {r.country}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      ) : null}
-      {showPopular ? (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Popular</Text>
-          {POPULAR_DESTINATIONS.map((d, i) => (
-            <TouchableOpacity
-              key={`${d.city}-${d.country}-${i}`}
-              style={styles.suggestionRow}
-              onPress={() => handleSelect(d.city, d.country)}
-            >
-              <Text style={styles.suggestionFlag}>{d.flag}</Text>
-              <Text style={styles.suggestionText}>
-                {d.city}, {d.country}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      ) : null}
       {showAutocomplete ? (
         <View style={styles.section}>
           {suggestions.map((item) => (
@@ -149,6 +115,23 @@ export function DestinationSearch({
             >
               <Text style={styles.suggestionFlag}>{item.flag}</Text>
               <Text style={styles.suggestionText}>{item.city}, {item.country}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : null}
+      {showPopular ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Popular</Text>
+          {filteredPopular.map((d, i) => (
+            <TouchableOpacity
+              key={`${d.city}-${d.country}-${i}`}
+              style={styles.suggestionRow}
+              onPress={() => handleSelect(d.city, d.country)}
+            >
+              <Text style={styles.suggestionFlag}>{d.flag}</Text>
+              <Text style={styles.suggestionText}>
+                {d.city}, {d.country}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>

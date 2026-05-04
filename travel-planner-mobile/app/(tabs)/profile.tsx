@@ -1,44 +1,36 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
 import { userApi } from '@/api/user';
 import { authApi } from '@/api/auth';
 import { cancelAllReminders } from '@/utils/notifications';
 import { clearAllNotifications } from '@/utils/notificationStore';
 import { clearTokens } from '@/utils/auth';
-import { ProfileAvatar } from '@/components/ProfileAvatar';
-import { ProfileForm } from '@/components/ProfileForm';
-import type { ProfileView } from '@/types/user';
+import { ProfileIdentitySection } from '@/components/ProfileIdentitySection';
+import { ProfileStats } from '@/components/ProfileStats';
+import { ProfilePreferences } from '@/components/ProfilePreferences';
+import { ProfileSupport } from '@/components/ProfileSupport';
+import { ProfileDangerZone } from '@/components/ProfileDangerZone';
+import { ProfileErrorState, ProfileLoadingState } from '@/components/ProfileScreenStates';
 import { mapProfileToView } from '@/utils/profileMappers';
 import { showToast } from '@/utils/toastStore';
 import { getErrorMessage } from '@/utils/errorHandler';
 import { SUCCESS_MESSAGES } from '@/constants/errors';
-import { theme } from '@/constants/theme';
-
-const APP_VERSION = 'AI Travel Planner v1.0.0';
+import { profileStyles } from '@/constants/profileScreenStyles';
+import type { ProfileView } from '@/types/user';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const [profile, setProfile] = useState<ProfileView | null>(null);
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [saveLoading, setSaveLoading] = useState(false);
-  const [uploadLoading, setUploadLoading] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
 
   const loadProfile = useCallback(async () => {
     setError(null);
     setLoading(true);
     try {
       const res = await userApi.getProfile();
-      const raw = (res.data ?? {}) as Record<string, unknown>;
-      const view = mapProfileToView(raw);
-      setProfile(view);
-      setName(view.name);
-      setPhone(view.phone);
+      setProfile(mapProfileToView((res.data ?? {}) as Record<string, unknown>));
     } catch (e: unknown) {
       setError(getErrorMessage(e));
     } finally {
@@ -49,56 +41,8 @@ export default function ProfileScreen() {
   useFocusEffect(
     useCallback(() => {
       loadProfile();
-    }, [loadProfile])
+    }, [loadProfile]),
   );
-
-  const handlePhotoPress = useCallback(async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Allow access to your photos to change your profile picture.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-    if (result.canceled || !result.assets?.[0]?.uri) return;
-    setUploadLoading(true);
-    setSaveError(null);
-    try {
-      const formData = new FormData();
-      formData.append('photo', {
-        uri: result.assets[0].uri,
-        type: 'image/jpeg',
-        name: 'avatar.jpg',
-      } as unknown as Blob);
-      await userApi.uploadPhoto(formData);
-      const res = await userApi.getProfile();
-      const view = mapProfileToView((res.data ?? {}) as Record<string, unknown>);
-      setProfile(view);
-    } catch (e: unknown) {
-      setSaveError(getErrorMessage(e));
-    } finally {
-      setUploadLoading(false);
-    }
-  }, []);
-
-  const handleSave = useCallback(async () => {
-    setSaveError(null);
-    setSaveLoading(true);
-    try {
-      await userApi.updateProfile({ name, phone });
-      showToast('success', SUCCESS_MESSAGES.PROFILE_UPDATED);
-      const res = await userApi.getProfile();
-      setProfile(mapProfileToView((res.data ?? {}) as Record<string, unknown>));
-    } catch (e: unknown) {
-      setSaveError(getErrorMessage(e));
-    } finally {
-      setSaveLoading(false);
-    }
-  }, [name, phone]);
 
   const handleLogout = useCallback(async () => {
     await cancelAllReminders();
@@ -106,142 +50,45 @@ export default function ProfileScreen() {
     try {
       await authApi.logout();
     } catch {
-      // continue to clear local state
+      // clear local state regardless
     }
     await clearTokens();
     showToast('success', SUCCESS_MESSAGES.LOGGED_OUT);
     router.replace('/login');
   }, [router]);
 
-  if (loading && !profile) {
-    return (
-      <View style={[styles.screen, styles.centered]}>
-        <View style={styles.glowOrbTop} />
-        <View style={styles.glowOrbBottom} />
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={styles.loadingText}>Loading profile...</Text>
-      </View>
-    );
-  }
-
-  if (error && !profile) {
-    return (
-      <View style={[styles.screen, styles.centered]}>
-        <View style={styles.glowOrbTop} />
-        <View style={styles.glowOrbBottom} />
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryBtn} onPress={loadProfile}>
-          <Text style={styles.retryBtnText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  if (loading && !profile) return <ProfileLoadingState />;
+  if (error && !profile) return <ProfileErrorState message={error} onRetry={loadProfile} />;
 
   const currentProfile = profile ?? { name: '', email: '', phone: '', photoUrl: null };
 
   return (
-    <View style={styles.screen}>
-      <View style={styles.glowOrbTop} />
-      <View style={styles.glowOrbBottom} />
+    <View style={profileStyles.screen}>
+      <View style={profileStyles.glowOrbTop} />
+      <View style={profileStyles.glowOrbBottom} />
 
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
+        style={profileStyles.scroll}
+        contentContainerStyle={profileStyles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.eyebrow}>PROFILE</Text>
-        <Text style={styles.title}>My Profile</Text>
-        <Text style={styles.subtitle}>Manage your account details</Text>
-        <View style={styles.headerDivider} />
+        <Text style={profileStyles.eyebrow}>PROFILE</Text>
+        <Text style={profileStyles.title}>My Profile</Text>
+        <Text style={profileStyles.subtitle}>Manage your account details</Text>
+        <View style={profileStyles.headerDivider} />
 
-        <ProfileAvatar
-          photoUrl={currentProfile.photoUrl}
-          name={currentProfile.name}
-          onPress={handlePhotoPress}
-          uploadLoading={uploadLoading}
-        />
+        <ProfileIdentitySection profile={currentProfile} />
+        <ProfileStats />
+        <ProfilePreferences />
+        <ProfileSupport />
 
-        <ProfileForm
-          name={name}
-          email={currentProfile.email}
-          phone={phone}
-          onChangeName={setName}
-          onChangePhone={setPhone}
-        />
-
-        {saveError ? (
-          <Text style={styles.saveErrorText}>{saveError}</Text>
-        ) : null}
-
-        <TouchableOpacity
-          style={styles.saveBtn}
-          onPress={handleSave}
-          disabled={saveLoading}
-        >
-          {saveLoading ? (
-            <ActivityIndicator color={theme.colors.text} />
-          ) : (
-            <Text style={styles.saveBtnText}>Save changes</Text>
-          )}
+        <TouchableOpacity style={profileStyles.logoutBtn} onPress={handleLogout}>
+          <Text style={profileStyles.logoutBtnText}>Log out</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Text style={styles.logoutBtnText}>Log out</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.version}>{APP_VERSION}</Text>
-        <View style={styles.spacer} />
+        <ProfileDangerZone />
+        <View style={profileStyles.spacer} />
       </ScrollView>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: theme.colors.background },
-  glowOrbTop: {
-    position: 'absolute', top: -100, right: -80,
-    width: 320, height: 320, borderRadius: 999,
-    backgroundColor: 'rgba(99,102,241,0.08)',
-  },
-  glowOrbBottom: {
-    position: 'absolute', bottom: -120, left: -80,
-    width: 280, height: 280, borderRadius: 999,
-    backgroundColor: 'rgba(99,102,241,0.06)',
-  },
-  scroll: { flex: 1 },
-  content: { paddingHorizontal: 24, paddingTop: 58, paddingBottom: 56 },
-  centered: { justifyContent: 'center', alignItems: 'center' },
-  eyebrow: {
-    fontSize: 10, color: '#4b5563', letterSpacing: 1.5,
-    textTransform: 'uppercase', fontWeight: '600', marginBottom: 8,
-  },
-  title: { fontSize: 26, fontWeight: '700', color: theme.colors.text, letterSpacing: -0.5 },
-  subtitle: { color: theme.colors.subtext, marginTop: 6, fontSize: 13 },
-  headerDivider: {
-    height: 1, backgroundColor: theme.colors.divider,
-    marginTop: 16, marginBottom: 24,
-  },
-  loadingText: { color: theme.colors.subtext, marginTop: 12 },
-  errorText: { color: theme.colors.error, textAlign: 'center', marginBottom: 16 },
-  retryBtn: {
-    backgroundColor: theme.colors.primary, padding: 16,
-    borderRadius: theme.radius.md, alignItems: 'center',
-    width: '100%', marginTop: 8,
-  },
-  retryBtnText: { color: theme.colors.text, fontWeight: '700', fontSize: 16 },
-  saveErrorText: { color: theme.colors.error, marginBottom: 8, textAlign: 'center' },
-  saveBtn: {
-    backgroundColor: theme.colors.primary, borderRadius: theme.radius.md,
-    height: 54, alignItems: 'center', justifyContent: 'center', marginBottom: 12,
-  },
-  saveBtnText: { color: theme.colors.text, fontWeight: '700', fontSize: 16 },
-  logoutBtn: {
-    backgroundColor: 'rgba(239,68,68,0.08)',
-    borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)',
-    borderRadius: theme.radius.md, height: 54,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 24,
-  },
-  logoutBtnText: { color: '#f87171', fontWeight: '700', fontSize: 16 },
-  version: { color: theme.colors.subtext, fontSize: 12, textAlign: 'center' },
-  spacer: { height: 40 },
-});

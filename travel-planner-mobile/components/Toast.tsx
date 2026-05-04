@@ -4,11 +4,10 @@ import {
   Text,
   StyleSheet,
   Animated,
-  Dimensions,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
-export type ToastType = 'success' | 'error' | 'info';
+export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
 export interface ToastProps {
   message: string;
@@ -30,6 +29,12 @@ const TYPE_CONFIG = {
     icon: 'x-circle' as const,
     backgroundColor: 'rgba(248, 113, 113, 0.1)',
     borderColor: 'rgba(248, 113, 113, 0.2)',
+  },
+  warning: {
+    color: '#f59e0b',
+    icon: 'alert-circle' as const,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderColor: 'rgba(245, 158, 11, 0.2)',
   },
   info: {
     color: '#6366f1',
@@ -72,11 +77,7 @@ export function Toast({
     }
   }, [visible, duration, slideAnim, onDismiss]);
 
-  if (!visible && slideAnim.__getValue() === -100) {
-    return null;
-  }
-
-  const config = TYPE_CONFIG[type];
+  const config = TYPE_CONFIG[type] ?? TYPE_CONFIG.info;
 
   return (
     <Animated.View

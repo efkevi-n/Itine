@@ -41,7 +41,14 @@ export function ToastContainer() {
   return (
     <View style={[styles.container, { top }]} pointerEvents="box-none">
       {toasts.map((t) => (
-        <Toast key={t.id} toast={t} onDismiss={dismissToast} />
+        <Toast
+          key={t.id}
+          visible
+          message={t.message}
+          type={t.type}
+          duration={t.duration}
+          onDismiss={() => dismissToast(t.id)}
+        />
       ))}
     </View>
   );
