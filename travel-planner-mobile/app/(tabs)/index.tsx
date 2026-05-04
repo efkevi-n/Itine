@@ -16,10 +16,9 @@ import * as Haptics from "expo-haptics";
 import { userApi } from "@/api/user";
 import { tripsApi } from "@/api/trips";
 import { TripCard, type TripCardData } from "@/components/TripCard";
-import { Toast } from "@/components/Toast";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { useConnectivity } from "@/hooks/useConnectivity";
-import { useToastStore } from "@/utils/toast";
+import { showToast } from "@/utils/toastStore";
 import { getAccessToken, clearTokens } from "@/utils/auth";
 import {
   cacheTrip,
@@ -145,10 +144,6 @@ function SkeletonCard() {
 export default function HomeScreen() {
   const router = useRouter();
   const { isOnline } = useConnectivity();
-  const toastMessage = useToastStore((state) => state.message);
-  const toastType = useToastStore((state) => state.type);
-  const toastVisible = useToastStore((state) => state.visible);
-  const hideToast = useToastStore((state) => state.hide);
   const [userName, setUserName] = useState<string>("");
   const [trips, setTrips] = useState<TripCardData[]>([]);
   const [filteredTrips, setFilteredTrips] = useState<TripCardData[]>([]);
@@ -180,7 +175,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (error) {
-      useToastStore.getState().show(error, "error", 4000);
+      showToast('error', error, 4000);
       setError(null);
     }
   }, [error]);
@@ -334,13 +329,6 @@ export default function HomeScreen() {
       <View
         style={[styles.glowOrb, styles.glowOrbBottom]}
         pointerEvents="none"
-      />
-
-      <Toast
-        visible={toastVisible}
-        message={toastMessage}
-        type={toastType}
-        onDismiss={hideToast}
       />
 
       <ScrollView

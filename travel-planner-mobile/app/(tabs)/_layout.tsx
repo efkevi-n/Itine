@@ -1,14 +1,27 @@
 import { Tabs, useFocusEffect } from "expo-router";
-import React, { useState, useCallback } from "react";
-import { View } from "react-native";
+import React, { useState, useCallback, useEffect } from "react";
+import { View, ActivityIndicator } from "react-native";
 import { HapticTab } from "@/components/haptic-tab";
 import { UnreadBadge } from "@/components/UnreadBadge";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { getUnreadCount } from "@/utils/notificationStore";
+import { loadUserPreferences } from "@/utils/userPreferences";
+import { useBiometricLock } from "@/hooks/useBiometricLock";
+import { BiometricGate } from "@/components/BiometricGate";
 import { theme } from "@/constants/theme";
 
 export default function TabLayout() {
   const [unreadCount, setUnreadCount] = useState(0);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+  const { lockState, unlock, isLocked } = useBiometricLock();
+
+  useEffect(() => {
+    loadUserPreferences().then((prefs) => {
+      setBiometricEnabled(prefs.biometricLogin);
+      setPrefsLoaded(true);
+    });
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -16,7 +29,15 @@ export default function TabLayout() {
     }, []),
   );
 
-  return (
+  if (!prefsLoaded) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.background, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator color={theme.colors.primary} />
+      </View>
+    );
+  }
+
+  const tabs = (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: theme.colors.primary,
@@ -70,5 +91,13 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+  );
+
+  if (!biometricEnabled) return tabs;
+
+  return (
+    <BiometricGate isLocked={isLocked} lockState={lockState} onUnlock={unlock}>
+      {tabs}
+    </BiometricGate>
   );
 }

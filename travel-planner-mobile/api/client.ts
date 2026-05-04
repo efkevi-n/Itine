@@ -1,6 +1,5 @@
-import axios from 'axios';
-import { getAccessToken } from '@/utils/auth';
-import { clearTokens } from '@/utils/auth';
+import axios, { type InternalAxiosRequestConfig } from 'axios';
+import { getAccessToken, getRefreshToken, saveTokens, clearTokens } from '@/utils/auth';
 
 const BASE_URL = 'https://backend-mobile-production-4d32.up.railway.app';
 const DEFAULT_TIMEOUT = 30000;
@@ -27,15 +26,71 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
+let isRefreshing = false;
+type QueueCallback = (token: string | null) => void;
+let pendingQueue: QueueCallback[] = [];
+
+function drainQueue(token: string | null) {
+  pendingQueue.forEach((cb) => cb(token));
+  pendingQueue = [];
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error?.response?.status === 401) {
-      await clearTokens();
-      if (unauthorizedHandler) {
-        unauthorizedHandler();
-      }
+    const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+
+    if (error?.response?.status !== 401 || original._retry) {
+      return Promise.reject(error);
     }
-    return Promise.reject(error);
-  }
+
+    // Don't attempt refresh for the refresh endpoint itself
+    if (original.url?.includes('/auth/refresh')) {
+      await clearTokens();
+      unauthorizedHandler?.();
+      return Promise.reject(error);
+    }
+
+    if (isRefreshing) {
+      return new Promise((resolve, reject) => {
+        pendingQueue.push((token) => {
+          if (token) {
+            original.headers.Authorization = `Bearer ${token}`;
+            resolve(api(original));
+          } else {
+            reject(error);
+          }
+        });
+      });
+    }
+
+    original._retry = true;
+    isRefreshing = true;
+
+    try {
+      const refreshToken = await getRefreshToken();
+      if (!refreshToken) throw new Error('No refresh token');
+
+      const res = await axios.post<{ accessToken?: string; refreshToken?: string }>(
+        `${normalizedBase}/auth/refresh`,
+        { refreshToken },
+        { headers: { Authorization: `Bearer ${refreshToken}` }, timeout: DEFAULT_TIMEOUT },
+      );
+
+      const newAccess = res.data.accessToken;
+      if (!newAccess) throw new Error('Refresh response missing accessToken');
+
+      await saveTokens(newAccess, res.data.refreshToken ?? refreshToken);
+      drainQueue(newAccess);
+      original.headers.Authorization = `Bearer ${newAccess}`;
+      return api(original);
+    } catch {
+      drainQueue(null);
+      await clearTokens();
+      unauthorizedHandler?.();
+      return Promise.reject(error);
+    } finally {
+      isRefreshing = false;
+    }
+  },
 );
