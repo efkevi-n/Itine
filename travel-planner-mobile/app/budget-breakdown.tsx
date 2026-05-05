@@ -14,7 +14,7 @@ import { tripsApi } from '@/api/trips';
 import { BudgetPieChart } from '@/components/BudgetPieChart';
 import { BudgetSummaryCards } from '@/components/BudgetSummaryCards';
 import { BudgetCategoryTable } from '@/components/BudgetCategoryTable';
-import { mapCostBreakdownToView } from '@/utils/budgetBreakdown';
+import { parseCostBreakdownPayload } from '@/utils/budgetBreakdown';
 import type { BudgetBreakdownView } from '@/types/budget';
 import { theme } from '@/constants/theme';
 
@@ -25,9 +25,20 @@ function parseBudget(trip: Record<string, unknown>): number {
   return 0;
 }
 
+function normalizeTripId(raw: string | string[] | undefined): string | undefined {
+  if (raw == null) return undefined;
+  return Array.isArray(raw) ? raw[0] : raw;
+}
+
+function getHttpStatus(e: unknown): number | undefined {
+  return (e as { response?: { status?: number } })?.response?.status;
+}
+
 export default function BudgetBreakdownScreen() {
   const router = useRouter();
-  const { tripId } = useLocalSearchParams<{ tripId?: string }>();
+  const { tripId: tripIdParam, totalBudget: budgetParam, currency: currencyParam } =
+    useLocalSearchParams<{ tripId?: string | string[]; totalBudget?: string; currency?: string }>();
+  const tripId = normalizeTripId(tripIdParam);
   const [data, setData] = useState<BudgetBreakdownView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,29 +51,48 @@ export default function BudgetBreakdownScreen() {
     setError(null);
     setLoading(true);
     try {
-      const [tripRes, breakdownRes] = await Promise.all([
-        tripsApi.getById(tripId),
-        itineraryApi.getCostBreakdown(tripId),
-      ]);
-      const tripRaw = tripRes.data as Record<string, unknown>;
-      if (!tripRaw || typeof tripRaw !== 'object') {
-        setError('Trip not found.');
-        setLoading(false);
+      let totalBudget: number;
+      let currency: string;
+
+      if (budgetParam !== undefined && currencyParam !== undefined) {
+        totalBudget = parseFloat(budgetParam) || 0;
+        currency = currencyParam;
+      } else {
+        const tripRes = await tripsApi.getById(tripId);
+        const tripRaw = tripRes.data as Record<string, unknown>;
+        if (!tripRaw || typeof tripRaw !== 'object') {
+          setError('Trip not found.');
+          return;
+        }
+        totalBudget = parseBudget(tripRaw);
+        currency = String(tripRaw.currency ?? 'USD');
+      }
+
+      let breakdownRes;
+      try {
+        breakdownRes = await itineraryApi.getCostBreakdown(tripId);
+      } catch (e: unknown) {
+        if (getHttpStatus(e) === 404) {
+          setError(
+            'Cost breakdown is not available yet. Finish itinerary generation first.',
+          );
+          return;
+        }
+        throw e;
+      }
+
+      const parsed = parseCostBreakdownPayload(breakdownRes.data, totalBudget, currency);
+      if (!parsed.ok) {
+        setError(parsed.error);
         return;
       }
-      const totalBudget = parseBudget(tripRaw);
-      const currency = String(tripRaw.currency ?? 'USD');
-      const breakdownRaw = breakdownRes.data as Record<string, unknown>;
-      const breakdownList = Array.isArray(breakdownRaw?.breakdown)
-        ? (breakdownRaw.breakdown as Parameters<typeof mapCostBreakdownToView>[0])
-        : undefined;
-      setData(mapCostBreakdownToView(breakdownList, totalBudget, currency));
+      setData(parsed.view);
     } catch (e: unknown) {
       setError(getErrorMessage(e) || 'Failed to load budget.');
     } finally {
       setLoading(false);
     }
-  }, [tripId, router]);
+  }, [tripId, router, budgetParam, currencyParam]);
 
   useEffect(() => {
     loadData();
@@ -153,7 +183,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     marginBottom: 12,
   },
-  retryBtnText: { color: theme.colors.background, fontWeight: 'bold', fontSize: 16 },
+  retryBtnText: { color: theme.colors.text, fontWeight: 'bold', fontSize: 16 },
   backLink: { color: theme.colors.subtext, fontSize: 14 },
   spacer: { height: 40 },
 });

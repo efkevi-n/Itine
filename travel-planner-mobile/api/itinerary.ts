@@ -43,9 +43,21 @@ export interface BudgetBreakdownItem {
   [key: string]: unknown;
 }
 
-/** Cost breakdown from GET /itinerary/:tripId/cost-breakdown */
-export interface CostBreakdownResponse {
+/** Flat cost breakdown from GET /itinerary/:tripId/cost-breakdown (happy path). */
+export interface CostBreakdownFlat {
+  flight?: number;
+  accommodation?: number;
+  transport?: number;
+  activities?: number;
+  food?: number;
+  /** LLM total cost; may differ from sum of category buckets. */
+  total?: number;
+}
+
+/** Legacy array shape or error payload stored on failed pipeline. */
+export interface CostBreakdownResponse extends CostBreakdownFlat {
   breakdown?: BudgetBreakdownItem[];
+  error?: string;
   [key: string]: unknown;
 }
 

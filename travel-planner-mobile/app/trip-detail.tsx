@@ -216,28 +216,36 @@ export default function TripDetailScreen() {
 
           <View style={styles.divider} />
 
-          <View style={styles.actionRow}>
+          <View style={styles.actionsStack}>
             {showQr && (
               <TouchableOpacity
                 style={styles.qrBtn}
                 onPress={() => router.push({ pathname: '/qr-pass', params: { tripId: resolvedId } })}
+                activeOpacity={0.88}
               >
-                <Feather name="maximize" size={16} color="#ffffff" />
-                <Text style={styles.qrBtnText}>Show QR Pass</Text>
+                <Feather name="smartphone" size={18} color="#ffffff" />
+                <Text style={styles.qrBtnText} numberOfLines={1}>
+                  Show QR Pass
+                </Text>
               </TouchableOpacity>
             )}
             {isActive && (
               <TouchableOpacity
                 style={styles.trackBtn}
                 onPress={() => router.push({ pathname: '/active-trip', params: { tripId: resolvedId } })}
+                activeOpacity={0.88}
               >
-                <Feather name="navigation" size={16} color="#ffffff" />
-                <Text style={styles.trackBtnText}>Track Live</Text>
+                <Feather name="navigation" size={18} color="#ffffff" />
+                <Text style={styles.trackBtnText} numberOfLines={1}>
+                  Track Live
+                </Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
-              <Feather name="share-2" size={16} color="#9ca3af" />
-              <Text style={styles.shareBtnText}>Share</Text>
+            <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.88}>
+              <Feather name="share-2" size={18} color="#9ca3af" />
+              <Text style={styles.shareBtnText} numberOfLines={1}>
+                Share trip
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -259,7 +267,7 @@ export default function TripDetailScreen() {
 
           <TouchableOpacity
             style={styles.budgetNavBtn}
-            onPress={() => router.push({ pathname: '/budget-breakdown', params: { tripId: resolvedId } })}
+            onPress={() => router.push({ pathname: '/budget-breakdown', params: { tripId: resolvedId, totalBudget: trip.totalBudget, currency: trip.currency } })}
           >
             <Feather name="pie-chart" size={16} color="#6366f1" />
             <Text style={styles.budgetNavBtnText}>Budget Breakdown</Text>
@@ -330,23 +338,74 @@ const styles = StyleSheet.create({
   budgetLabel: { fontSize: 10, color: '#4b5563', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 },
   budgetValue: { fontSize: 18, fontWeight: '700', color: '#ffffff' },
   divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginBottom: 20 },
-  actionRow: { flexDirection: 'row', gap: 10, marginBottom: 16, flexWrap: 'wrap' },
+  actionsStack: {
+    width: '100%',
+    gap: 10,
+    marginBottom: 16,
+  },
   qrBtn: {
-    flex: 1, height: 50, backgroundColor: '#6366f1',
-    borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    width: '100%',
+    minHeight: 52,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    backgroundColor: '#6366f1',
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
-  qrBtnText: { color: '#ffffff', fontWeight: '700', fontSize: 14 },
+  qrBtnText: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 15,
+    flexShrink: 1,
+    textAlign: 'center',
+  },
   trackBtn: {
-    flex: 1, height: 50, backgroundColor: '#22c55e',
-    borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    width: '100%',
+    minHeight: 52,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    backgroundColor: '#22c55e',
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
-  trackBtnText: { color: '#ffffff', fontWeight: '700', fontSize: 14 },
+  trackBtnText: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 15,
+    flexShrink: 1,
+    textAlign: 'center',
+  },
   shareBtn: {
-    flex: 1, height: 50, backgroundColor: '#13131f', borderRadius: 12,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    width: '100%',
+    minHeight: 52,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    backgroundColor: '#13131f',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
   },
-  shareBtnText: { color: '#9ca3af', fontWeight: '600', fontSize: 14 },
+  shareBtnText: {
+    color: '#9ca3af',
+    fontWeight: '600',
+    fontSize: 15,
+    flexShrink: 1,
+    textAlign: 'center',
+  },
   budgetNavBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     height: 48, backgroundColor: '#13131f', borderRadius: 12,

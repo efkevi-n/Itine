@@ -448,7 +448,7 @@ export default function ItineraryReviewScreen() {
           <View style={styles.navRow}>
             <TouchableOpacity
               style={styles.navBtn}
-              onPress={() => router.push({ pathname: '/budget-breakdown', params: { tripId } })}
+              onPress={() => router.push({ pathname: '/budget-breakdown', params: { tripId, totalBudget: trip?.totalBudget ?? 0, currency: trip?.currency ?? 'USD' } })}
             >
               <Feather name="pie-chart" size={16} color="#6366f1" />
               <Text style={styles.navBtnText}>Budget</Text>
