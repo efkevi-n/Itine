@@ -170,6 +170,7 @@ export default function TripDetailScreen() {
   const statusColor = STATUS_COLORS[trip.status?.toUpperCase()] ?? '#94a3b8';
   const showQr = isQrPassAvailable(trip.status);
   const isActive = trip.status?.toUpperCase() === 'ACTIVE';
+  const isPending = trip.status?.toUpperCase() === 'PENDING';
   const isCancellable = ['PENDING', 'CONFIRMED'].includes(trip.status?.toUpperCase());
   const datesFormatted = formatTripDateRange(trip.startDate, trip.endDate);
 
@@ -248,6 +249,21 @@ export default function TripDetailScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+
+          {isPending && (
+            <TouchableOpacity
+              style={styles.confirmItineraryBtn}
+              onPress={() =>
+                router.push({ pathname: '/itinerary-review', params: { tripId: resolvedId } })
+              }
+              activeOpacity={0.88}
+            >
+              <Feather name="check-square" size={18} color="#ffffff" />
+              <Text style={styles.confirmItineraryBtnText} numberOfLines={1}>
+                View Itinerary & Confirm
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {isCancellable && (
             <TouchableOpacity
@@ -402,6 +418,28 @@ const styles = StyleSheet.create({
   shareBtnText: {
     color: '#9ca3af',
     fontWeight: '600',
+    fontSize: 15,
+    flexShrink: 1,
+    textAlign: 'center',
+  },
+  confirmItineraryBtn: {
+    width: '100%',
+    minHeight: 52,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    backgroundColor: '#6366f1',
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    marginBottom: 12,
+  },
+  confirmItineraryBtnText: {
+    color: '#ffffff',
+    fontWeight: '700',
     fontSize: 15,
     flexShrink: 1,
     textAlign: 'center',

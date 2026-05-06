@@ -6,7 +6,67 @@ import type {
 import { BUDGET_CATEGORIES } from "@/constants/budget";
 import type { BudgetBreakdownItem } from "@/api/itinerary";
 
-// ... keep your num(), parseAmount, normalizeCategoryKey, mapCostBreakdownToView, CATEGORY_KEYS as they are ...
+const CATEGORY_KEYS: BudgetCategoryKey[] = [
+  "flights",
+  "accommodation",
+  "transport",
+  "activities",
+  "food",
+];
+
+function num(v: unknown): number {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    return parseFloat(v.replace(/[^0-9.]/g, "")) || 0;
+  }
+  return 0;
+}
+
+function normalizeCategoryKey(raw: string): BudgetCategoryKey | null {
+  const k = raw.toLowerCase().trim();
+  if (k === "flight" || k === "flights") return "flights";
+  if (k === "accommodation" || k === "hotel" || k === "stay") return "accommodation";
+  if (k === "transport" || k === "transfer") return "transport";
+  if (k === "activities" || k === "activity") return "activities";
+  if (k === "food" || k === "dining" || k === "meals") return "food";
+  return null;
+}
+
+export function mapCostBreakdownToView(
+  items: BudgetBreakdownItem[],
+  totalBudget: number,
+  currency: string,
+): BudgetBreakdownView {
+  const amounts: Record<BudgetCategoryKey, number> = {
+    flights: 0,
+    accommodation: 0,
+    transport: 0,
+    activities: 0,
+    food: 0,
+  };
+
+  for (const item of items) {
+    const keyRaw = String(item.category ?? item.type ?? item.label ?? "");
+    const key = normalizeCategoryKey(keyRaw);
+    const amt = num(item.amount ?? item.value);
+    if (key) amounts[key] += amt;
+  }
+
+  const categories: BudgetCategory[] = CATEGORY_KEYS.map((key) => ({
+    key,
+    label: BUDGET_CATEGORIES[key].label,
+    icon: BUDGET_CATEGORIES[key].icon,
+    color: BUDGET_CATEGORIES[key].color,
+    allocated: amounts[key],
+  }));
+  const totalAllocated = categories.reduce((s, c) => s + c.allocated, 0);
+  return {
+    categories,
+    totalBudget,
+    totalAllocated,
+    currency,
+  };
+}
 
 /**
  * Normalizes GET /itinerary/:tripId/cost-breakdown body to per-category amounts.

@@ -67,10 +67,17 @@ const STATUS_COLORS: Record<string, string> = {
   CANCELLED: '#ef4444',
 };
 
-function parseNum(v: unknown): number {
-  if (typeof v === 'number' && !isNaN(v)) return v;
-  if (typeof v === 'string') return parseFloat(v) || 0;
+const parseAmount = (val: unknown): number => {
+  if (typeof val === 'number') return val;
+  if (typeof val === 'string') {
+    return parseFloat(val.replace(/[^0-9.]/g, '')) || 0;
+  }
   return 0;
+};
+
+function normalizeTripIdParam(raw: string | string[] | undefined): string | undefined {
+  if (raw == null) return undefined;
+  return Array.isArray(raw) ? raw[0] : raw;
 }
 
 function normalizeDay(raw: Record<string, unknown>, index: number): DayItem {
@@ -85,14 +92,14 @@ function normalizeDay(raw: Record<string, unknown>, index: number): DayItem {
     [flight.airline, flight.departure, flight.arrival, flight.info].filter(Boolean).join(' — ');
   const flightCost =
     flight && (flight.price != null || flight.cost != null)
-      ? `$${parseNum(flight.price ?? flight.cost)}`
+      ? `$${parseAmount(flight.price ?? flight.cost)}`
       : '$0';
 
   const hotelName = String(hotel?.['name'] ?? hotel?.['hotelName'] ?? '');
   const hotelType = String(hotel?.['type'] ?? '');
   const hotelCostVal = hotel?.['cost'] ?? hotel?.['pricePerNight'];
   const hotelCost = hotelCostVal != null
-    ? `${typeof hotelCostVal === 'string' ? hotelCostVal : `$${parseNum(hotelCostVal)}/night`}`
+    ? `${typeof hotelCostVal === 'string' ? hotelCostVal : `$${parseAmount(hotelCostVal)}/night`}`
     : '—';
 
   const transportInfo =
@@ -100,31 +107,31 @@ function normalizeDay(raw: Record<string, unknown>, index: number): DayItem {
     [transport.type, transport.from, transport.to, transport.info].filter(Boolean).join(' ');
   const transportCost =
     transport && (transport.price != null || transport.cost != null)
-      ? `$${parseNum(transport.price ?? transport.cost)}`
+      ? `$${parseAmount(transport.price ?? transport.cost)}`
       : '$0';
 
   const activities: ActivityItem[] = activitiesRaw.map((a: unknown) => {
     const x = a as Record<string, unknown>;
     return {
       name: String(x.name ?? ''),
-      cost: x.cost != null ? `$${parseNum(x.cost)}` : '—',
+      cost: x.cost != null ? `$${parseAmount(x.cost)}` : '—',
       duration: x.duration != null ? String(x.duration) : undefined,
     };
   });
 
-  let dayTotal = parseNum(flight?.price ?? flight?.cost) + parseNum(transport?.price ?? transport?.cost);
+  let dayTotal =
+    parseAmount(flight?.price ?? flight?.cost) + parseAmount(transport?.price ?? transport?.cost);
   activities.forEach((a) => {
-    const m = String(a.cost).replace(/[^0-9.]/g, '');
-    if (m) dayTotal += parseFloat(m) || 0;
+    dayTotal += parseAmount(a.cost);
   });
   const hotelPrice = hotel?.['pricePerNight'] ?? hotel?.['cost'];
-  if (hotelPrice != null) dayTotal += parseNum(hotelPrice);
+  if (hotelPrice != null) dayTotal += parseAmount(hotelPrice);
 
   return {
     day: dayNum,
     title: String(raw.title ?? `Day ${dayNum}`),
     flight:
-      flight && (flightInfo || parseNum(flight.price ?? flight.cost) > 0)
+      flight && (flightInfo || parseAmount(flight.price ?? flight.cost) > 0)
         ? { info: flightInfo || 'Flight', cost: flightCost }
         : null,
     hotel: { name: hotelName || '—', type: hotelType, cost: hotelCost },
@@ -137,18 +144,12 @@ function normalizeDay(raw: Record<string, unknown>, index: number): DayItem {
 function buildBudgetFromDays(days: DayItem[]): BudgetItem[] {
   let flights = 0, accommodation = 0, activities = 0, transport = 0;
   days.forEach((d) => {
-    if (d.flight) {
-      const m = d.flight.cost.replace(/[^0-9.]/g, '');
-      if (m) flights += parseFloat(m);
-    }
-    const hotelMatch = d.hotel.cost.match(/[\d.]+/);
-    if (hotelMatch) accommodation += parseFloat(hotelMatch[0]);
+    if (d.flight) flights += parseAmount(d.flight.cost);
+    accommodation += parseAmount(d.hotel.cost);
     d.activities.forEach((a) => {
-      const m = a.cost.replace(/[^0-9.]/g, '');
-      if (m) activities += parseFloat(m);
+      activities += parseAmount(a.cost);
     });
-    const transMatch = d.transport.cost.replace(/[^0-9.]/g, '');
-    if (transMatch) transport += parseFloat(transMatch);
+    transport += parseAmount(d.transport.cost);
   });
   return [
     { ...BUDGET_COLORS.flights, amount: Math.round(flights) },
@@ -161,7 +162,8 @@ function buildBudgetFromDays(days: DayItem[]): BudgetItem[] {
 export default function ItineraryReviewScreen() {
   const router = useRouter();
   const { isOnline } = useConnectivity();
-  const { tripId } = useLocalSearchParams<{ tripId?: string }>();
+  const rawTripId = useLocalSearchParams<{ tripId?: string | string[] }>().tripId;
+  const tripId = normalizeTripIdParam(rawTripId);
   const [trip, setTrip] = useState<TripSummary | null>(null);
   const [itinerary, setItinerary] = useState<DayItem[]>([]);
   const [budgetBreakdown, setBudgetBreakdown] = useState<BudgetItem[]>([]);
@@ -201,7 +203,7 @@ export default function ItineraryReviewScreen() {
         destination: String(tripData.destination ?? ''),
         startDate: String(tripData.startDate ?? tripData.start_date ?? ''),
         endDate: String(tripData.endDate ?? tripData.end_date ?? ''),
-        totalBudget: parseNum(tripData.totalBudget ?? tripData.total_budget),
+        totalBudget: parseAmount(tripData.totalBudget ?? tripData.total_budget),
         currency: String(tripData.currency ?? 'USD'),
         status: String(tripData.status ?? 'PENDING').toUpperCase(),
       });
@@ -239,7 +241,7 @@ export default function ItineraryReviewScreen() {
               const x = b as Record<string, unknown>;
               const key = String(x.category ?? x.type ?? '').toLowerCase();
               const def = map[key] ?? { label: String(x.label ?? key), color: '#94a3b8', emoji: '📦', icon: 'package' };
-              return { label: def.label, amount: parseNum(x.amount ?? x.value), color: def.color, emoji: def.emoji, icon: def.icon } as BudgetItem;
+              return { label: def.label, amount: parseAmount(x.amount ?? x.value), color: def.color, emoji: def.emoji, icon: def.icon } as BudgetItem;
             })
             .filter((b) => b.amount > 0);
           setBudgetBreakdown(fromApi.length > 0 ? fromApi : buildBudgetFromDays(days));
@@ -265,7 +267,7 @@ export default function ItineraryReviewScreen() {
             destination: String(data.trip.destination ?? ''),
             startDate: String(data.trip.startDate ?? data.trip.start_date ?? ''),
             endDate: String(data.trip.endDate ?? data.trip.end_date ?? ''),
-            totalBudget: parseNum(data.trip.totalBudget ?? data.trip.total_budget),
+            totalBudget: parseAmount(data.trip.totalBudget ?? data.trip.total_budget),
             currency: String(data.trip.currency ?? 'USD'),
             status: String(data.trip.status ?? 'PENDING').toUpperCase(),
           });
@@ -285,7 +287,7 @@ export default function ItineraryReviewScreen() {
                 const x = b as Record<string, unknown>;
                 const key = String(x.category ?? x.type ?? '').toLowerCase();
                 const def = map[key] ?? { label: String(x.label ?? key), color: '#94a3b8', emoji: '📦', icon: 'package' };
-                return { label: def.label, amount: parseNum(x.amount ?? x.value), color: def.color, emoji: def.emoji, icon: def.icon } as BudgetItem;
+                return { label: def.label, amount: parseAmount(x.amount ?? x.value), color: def.color, emoji: def.emoji, icon: def.icon } as BudgetItem;
               }));
             } else setBudgetBreakdown(buildBudgetFromDays(days));
           }
@@ -314,9 +316,19 @@ export default function ItineraryReviewScreen() {
   }, [isGenerating, tripId, loadData]);
 
   const handleConfirm = async () => {
+    console.log('CONFIRM TAPPED - tripId:', tripId);
+    if (!tripId) {
+      console.log('CONFIRM ABORT - tripId missing');
+      router.replace('/(tabs)');
+      return;
+    }
+    if (!isOnline) {
+      console.log('CONFIRM ABORT - offline (need network to confirm)');
+      setConfirmError('Go online to confirm your trip and generate your QR pass.');
+      return;
+    }
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setConfirmError(null);
-    if (!tripId) { router.replace('/(tabs)'); return; }
     setConfirmLoading(true);
     try {
       await tripsApi.confirm(tripId);
@@ -349,7 +361,6 @@ export default function ItineraryReviewScreen() {
     ? Math.max(0, Math.ceil((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24)))
     : 0;
   const statusColor = trip ? (STATUS_COLORS[trip.status] ?? '#94a3b8') : '#94a3b8';
-  const offlineDisabled = !isOnline;
 
   if (!tripId) return null;
 
@@ -454,9 +465,9 @@ export default function ItineraryReviewScreen() {
               <Text style={styles.navBtnText}>Budget</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.navBtn, offlineDisabled && styles.btnDisabled]}
-              onPress={() => !offlineDisabled && router.push({ pathname: '/edit-itinerary', params: { tripId } } as Parameters<typeof router.push>[0])}
-              disabled={offlineDisabled}
+              style={[styles.navBtn, !isOnline && styles.btnDisabled]}
+              onPress={() => isOnline && router.push({ pathname: '/edit-itinerary', params: { tripId } } as Parameters<typeof router.push>[0])}
+              disabled={!isOnline}
             >
               <Feather name="edit-2" size={16} color="#6366f1" />
               <Text style={styles.navBtnText}>Edit</Text>
@@ -571,9 +582,9 @@ export default function ItineraryReviewScreen() {
           ) : null}
 
           <TouchableOpacity
-            style={[styles.confirmBtn, (confirmLoading || offlineDisabled) && styles.btnDisabled]}
+            style={[styles.confirmBtn, confirmLoading && styles.btnDisabled]}
             onPress={handleConfirm}
-            disabled={confirmLoading || offlineDisabled}
+            disabled={confirmLoading}
             activeOpacity={0.85}
           >
             {confirmLoading ? (

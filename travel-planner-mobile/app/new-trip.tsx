@@ -122,19 +122,18 @@ export default function NewTripScreen() {
     }
     setLoading(true);
     try {
-      const preferencesObj = preferences.reduce<Record<string, boolean>>((acc, pref) => {
-        acc[pref.id] = selectedPrefs.includes(pref.id);
-        return acc;
-      }, {});
+      const selectedPreferences = preferences
+        .filter((p) => selectedPrefs.includes(p.id))
+        .map((p) => p.apiValue);
 
       const createRes = await api.post<{ id?: string; data?: { id?: string } }>('/trips', {
-        destination: destination.trim(),
-        origin: origin.trim(),
+        destination: destination.split(',')[0].trim(),
+        origin: origin.split(',')[0].trim(),
         startDate: startDate.trim(),
         endDate: endDate.trim(),
-        budget: Number(budget),
-        currency: currency,
-        preferences: preferencesObj,
+        totalBudget: Number(budget),
+        currency,
+        preferences: selectedPreferences,
       });
 
       const tripId =
@@ -158,7 +157,7 @@ export default function NewTripScreen() {
       }
 
       const pollInterval = 3000;
-      const maxAttempts = 20;
+      const maxAttempts = 40;
       for (let i = 0; i < maxAttempts; i++) {
         await new Promise((r) => setTimeout(r, pollInterval));
         const jobRes = await api.get<{ status?: string }>(`/itinerary/jobs/${jobId}`);
