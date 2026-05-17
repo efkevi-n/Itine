@@ -7,7 +7,6 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  Animated,
 } from "react-native";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import * as SecureStore from "expo-secure-store";
@@ -63,7 +62,8 @@ function getTripTitle(destination: string): string {
 
 export default function QRPassScreen() {
   const router = useRouter();
-  const { top, stackScrollBottomCompact: scrollBottom, contentPaddingHorizontal } = useScreenInsets();
+  const { insets, top } = useScreenInsets();
+  const scrollBottom = insets.bottom + 120;
   const { isOnline } = useConnectivity();
   const { tripId, jti: paramJti } = useLocalSearchParams<{
     tripId?: string;
@@ -83,15 +83,6 @@ export default function QRPassScreen() {
   const [offlineMode, setOfflineMode] = useState(false);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const loadedByJtiRef = useRef(false);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 400,
-      useNativeDriver: true,
-    }).start();
-  }, [fadeAnim]);
 
   const currentTripId =
     (typeof tripId === "string" ? tripId : undefined) ??
@@ -390,23 +381,22 @@ export default function QRPassScreen() {
         <View style={styles.errorIconWrap}>
           <Feather name="alert-circle" size={32} color={GREEN} />
         </View>
-        <Text style={styles.authTitle}>Unable to Load Pass</Text>
-        <Text style={styles.authSubtitle}>{loadError}</Text>
+        <Text style={styles.errorTitle}>Unable to Load Pass</Text>
+        <Text style={styles.errorSubtitle}>{loadError}</Text>
         <TouchableOpacity
-          style={styles.authBtn}
+          style={styles.primaryBtn}
           onPress={async () => {
             await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             loadData();
           }}
         >
-          <Text style={styles.authBtnText}>Retry</Text>
+          <Text style={styles.primaryBtnText}>Retry</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={async () => {
             await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             router.back();
           }}
-          style={styles.backLinkBtn}
         >
           <Text style={styles.backLink}>Go Back</Text>
         </TouchableOpacity>
@@ -436,105 +426,87 @@ export default function QRPassScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: scrollBottom, paddingHorizontal: contentPaddingHorizontal },
-        ]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollBottom }]}
         showsVerticalScrollIndicator={false}
         onScroll={resetLockTimer}
         scrollEventThrottle={16}
       >
-        <Animated.View style={{ opacity: fadeAnim }}>
-          <TouchableOpacity
-            style={styles.backBtn}
-            onPress={async () => {
-              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.back();
-            }}
-          >
-            <Feather name="chevron-left" size={18} color="#6366f1" />
-            <Text style={styles.backText}>Back</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.eyebrow}>QR PASS</Text>
-          <Text style={styles.title}>Your QR Pass</Text>
-          <Text style={styles.subtitle}>Show this at check-in points</Text>
-          <View style={styles.divider} />
-
-          <View style={styles.passCard}>
-            <View style={styles.passTop}>
-              <View style={styles.passTopGlow} />
-              <Text style={styles.passTitle}>{tripTitle}</Text>
-              <Text style={styles.passSubtitle}>{datesFormatted}</Text>
-              <View style={styles.qrWrap}>
-                <View style={styles.qrFrame}>
-                  {qrPayload ? (
-                    <QRCode
-                      value={qrPayload}
-                      size={180}
-                      color="#111827"
-                      backgroundColor="#fff"
-                    />
-                  ) : (
-                    <ActivityIndicator size="large" color={GREEN} />
-                  )}
-                </View>
-              </View>
-              <View style={styles.activePassBadge}>
-                <View style={styles.activeDot} />
-                <Text style={styles.activePassText}>Active Pass</Text>
-              </View>
-              {isOnline && !isLocked ? (
-                <Text style={styles.refreshHint}>
-                  Refreshes in {countdown}s
-                </Text>
-              ) : null}
-            </View>
-
-            <View style={styles.ticketDivider}>
-              <View style={styles.ticketNotchLeft} />
-              <View style={styles.ticketDash} />
-              <View style={styles.ticketNotchRight} />
-            </View>
-
-            <View style={styles.passBottom}>
-              <View style={styles.detailCard}>
-                <View style={styles.detailLeft}>
-                  <View style={[styles.detailIcon, styles.detailIconGreen]}>
-                    <Feather name="navigation" size={14} color={GREEN} />
-                  </View>
-                  <View>
-                    <Text style={styles.detailLabel}>Flight • {cityLabel}</Text>
-                    <Text style={styles.detailValue}>
-                      Show at check-in • Gate info in app
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.onTimeBadge}>
-                  <Text style={styles.onTimeText}>On Time</Text>
-                </View>
-              </View>
-
-              <View style={styles.detailCard}>
-                <View style={styles.detailLeft}>
-                  <View style={[styles.detailIcon, styles.detailIconBlue]}>
-                    <Feather name="home" size={14} color="#3B82F6" />
-                  </View>
-                  <View>
-                    <Text style={styles.detailLabel}>Hotel • {cityLabel}</Text>
-                    <Text style={styles.detailValue}>
-                      Check-in details in itinerary
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              <Text style={styles.scanHint}>
-                Scan this QR code at any partnered service.
-              </Text>
-            </View>
+        {offlineMode || !isOnline ? (
+          <View style={styles.offlineBanner}>
+            <Feather name="wifi-off" size={14} color="#D97706" />
+            <Text style={styles.offlineBannerText}>
+              Offline mode — using saved pass. Code may be expired.
+            </Text>
           </View>
-        </Animated.View>
+        ) : null}
+
+        <View style={[styles.passCard, CARD_SHADOW]}>
+          <View style={styles.passTop}>
+            <View style={styles.passTopGlow} />
+            <Text style={styles.passTitle}>{tripTitle}</Text>
+            <Text style={styles.passSubtitle}>{datesFormatted || "Your trip dates"}</Text>
+            <View style={styles.qrWrap}>
+              <View style={styles.qrFrame}>
+                {qrPayload ? (
+                  <QRCode
+                    value={qrPayload}
+                    size={192}
+                    color="#111827"
+                    backgroundColor="#fff"
+                  />
+                ) : (
+                  <ActivityIndicator size="large" color={GREEN} />
+                )}
+              </View>
+            </View>
+            <View style={styles.activePassBadge}>
+              <View style={styles.activeDot} />
+              <Text style={styles.activePassText}>Active Pass</Text>
+            </View>
+            {isOnline && !isLocked ? (
+              <Text style={styles.refreshHint}>Refreshes in {countdown}s</Text>
+            ) : null}
+          </View>
+
+          <View style={styles.ticketDivider}>
+            <View style={styles.ticketNotchLeft} />
+            <View style={styles.ticketDash} />
+            <View style={styles.ticketNotchRight} />
+          </View>
+
+          <View style={styles.passBottom}>
+            <View style={styles.detailCard}>
+              <View style={styles.detailLeft}>
+                <View style={[styles.detailIcon, styles.detailIconGreen]}>
+                  <Feather name="navigation" size={14} color={GREEN} />
+                </View>
+                <View style={styles.detailTextCol}>
+                  <Text style={styles.detailLabel}>Flight • {cityLabel}</Text>
+                  <Text style={styles.detailValue}>Gate info in your itinerary</Text>
+                </View>
+              </View>
+              <View style={styles.onTimeBadge}>
+                <Text style={styles.onTimeText}>On Time</Text>
+              </View>
+            </View>
+
+            <View style={styles.detailCard}>
+              <View style={styles.detailLeft}>
+                <View style={[styles.detailIcon, styles.detailIconBlue]}>
+                  <Feather name="home" size={14} color="#3B82F6" />
+                </View>
+                <View style={styles.detailTextCol}>
+                  <Text style={styles.detailLabel}>Hotel • {cityLabel}</Text>
+                  <Text style={styles.detailValue}>Check-in details in itinerary</Text>
+                </View>
+              </View>
+            </View>
+
+            <Text style={styles.scanHint}>
+              Scan this QR code at any partnered service.
+            </Text>
+          </View>
+        </View>
 
         <View style={styles.quickActions}>
           <TouchableOpacity
@@ -616,7 +588,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 2,
   },
-  headerTitle: { fontSize: 18, fontWeight: "700", color: TEXT },
+  headerTitle: { fontSize: 18, fontWeight: "700", color: TEXT, flex: 1, textAlign: "center" },
   offlineBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -640,6 +612,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "#F9FAFB",
+    marginTop: 4,
   },
   passTop: {
     paddingTop: 32,
@@ -753,7 +726,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 1,
   },
-  detailLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
+  detailLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1, minWidth: 0 },
+  detailTextCol: { flex: 1, minWidth: 0 },
   detailIcon: {
     width: 40,
     height: 40,
@@ -831,7 +805,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   hintNumber: {
     width: 24,
