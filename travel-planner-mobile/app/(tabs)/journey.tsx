@@ -39,25 +39,6 @@ interface JourneyTrip {
 
 const DEFAULT_PASSENGER_NAME = 'Guest Traveler';
 
-const FALLBACK_HOTEL_IMAGES = [
-  { keys: ['rome', 'italy'], imageUrl: 'https://images.unsplash.com/photo-1529260830199-42c24126f198?auto=format&fit=crop&w=1200&q=80' },
-  { keys: ['paris', 'france'], imageUrl: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1200&q=80' },
-  { keys: ['amsterdam', 'netherlands'], imageUrl: 'https://images.unsplash.com/photo-1512470876302-972faa2aa9a4?auto=format&fit=crop&w=1200&q=80' },
-  { keys: ['barcelona', 'spain'], imageUrl: 'https://images.unsplash.com/photo-1539037116277-4db20889f2d4?auto=format&fit=crop&w=1200&q=80' },
-  { keys: ['istanbul', 'turkey'], imageUrl: 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?auto=format&fit=crop&w=1200&q=80' },
-  { keys: ['ankara'], imageUrl: 'https://images.unsplash.com/photo-1609431268500-12f8b3d8f7f2?auto=format&fit=crop&w=1200&q=80' },
-  { keys: ['london', 'uk', 'united kingdom'], imageUrl: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=1200&q=80' },
-  { keys: ['tokyo', 'japan'], imageUrl: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=1200&q=80' },
-];
-
-function hotelImageForDestination(destination: string): string {
-  const normalized = destination.toLowerCase();
-  return (
-    FALLBACK_HOTEL_IMAGES.find((item) => item.keys.some((key) => normalized.includes(key)))?.imageUrl ??
-    'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80'
-  );
-}
-
 function formatEmailLocalPart(email: string): string {
   const localPart = email.split('@')[0]?.trim();
   if (!localPart) return DEFAULT_PASSENGER_NAME;
@@ -311,9 +292,7 @@ function buildHotelData(trip: JourneyTrip, bookings: RawRecord[]): HotelBookingD
   const hotelCoordinate = coordinateFrom(hotel);
 
   return {
-    imageUrl:
-      readString(hotel, ['imageUrl', 'image_url', 'image', 'photoUrl', 'photo_url', 'hotelImage']) ??
-      hotelImageForDestination(trip.destination),
+    imageUrl: readString(hotel, ['imageUrl', 'image_url', 'image', 'photoUrl', 'photo_url', 'hotelImage']) ?? '',
     hotelName: readString(hotel, ['hotelName', 'hotel_name', 'providerName', 'provider', 'name']) ?? 'Aoyama Grand Hotel',
     location: readString(hotel, ['location', 'address', 'cityCountry']) ?? cityCountry,
     checkIn: formatShortDate(readString(hotel, ['checkIn', 'check_in', 'validFrom', 'valid_from']) ?? trip.startDate),

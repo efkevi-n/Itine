@@ -2,20 +2,20 @@ import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Linking,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Feather } from '@expo/vector-icons';
-import { userApi } from '@/api/user';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { extractUploadedPhotoUrl, userApi } from '@/api/user';
+import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { authApi } from '@/api/auth';
 import { tripsApi } from '@/api/trips';
 import { cancelAllReminders } from '@/utils/notifications';
@@ -26,8 +26,7 @@ import { mapProfileToView } from '@/utils/profileMappers';
 import { showToast } from '@/utils/toastStore';
 import { getErrorMessage } from '@/utils/errorHandler';
 import { SUCCESS_MESSAGES } from '@/constants/errors';
-
-type Mode = 'light' | 'dark';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 type RawRecord = Record<string, unknown>;
 type FeatherName = keyof typeof Feather.glyphMap;
 
@@ -51,56 +50,30 @@ interface ProfileStats {
 const APP_VERSION = 'ITINE v1.0.0';
 const MANAGEMENT_EMAILS = ['220201811@ostimteknik.edu.tr', '220201722@ostimteknik.edu.tr'];
 
+const BG = '#F8F8F6';
+const TEXT = '#111827';
+const GREEN = '#10B981';
+const MUTED = '#6B7280';
+const BORDER = '#F9FAFB';
+const CARD_BORDER = '#F9FAFB';
+
 const defaultMeta: ProfileMeta = {
   role: 'Traveler',
   status: 'Active account',
   university: 'Not added',
   studentId: 'Not added',
   memberSince: 'Recently joined',
-  travelStyle: 'Flexible explorer',
+  travelStyle: 'Budget Traveler',
   language: 'English',
   themePreference: 'System default',
 };
 
-const palette = {
-  light: {
-    background: '#f3f6fb',
-    card: '#ffffff',
-    elevated: 'rgba(255,255,255,0.78)',
-    text: '#101827',
-    muted: '#667085',
-    subtle: '#94a3b8',
-    border: 'rgba(15,23,42,0.08)',
-    accent: '#2563eb',
-    accentSoft: 'rgba(37,99,235,0.11)',
-    success: '#16a34a',
-    successSoft: 'rgba(22,163,74,0.12)',
-    danger: '#ef4444',
-    dangerSoft: 'rgba(239,68,68,0.09)',
-    glowA: 'rgba(37,99,235,0.18)',
-    glowB: 'rgba(20,184,166,0.14)',
-    shadow: '#94a3b8',
-    input: '#f8fafc',
-  },
-  dark: {
-    background: '#0b1020',
-    card: '#151a27',
-    elevated: 'rgba(255,255,255,0.06)',
-    text: '#f8fafc',
-    muted: '#94a3b8',
-    subtle: '#64748b',
-    border: 'rgba(255,255,255,0.08)',
-    accent: '#8b9cff',
-    accentSoft: 'rgba(139,156,255,0.14)',
-    success: '#86efac',
-    successSoft: 'rgba(134,239,172,0.13)',
-    danger: '#f87171',
-    dangerSoft: 'rgba(248,113,113,0.1)',
-    glowA: 'rgba(99,102,241,0.2)',
-    glowB: 'rgba(45,212,191,0.12)',
-    shadow: '#020617',
-    input: 'rgba(255,255,255,0.05)',
-  },
+const CARD_SHADOW = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.04,
+  shadowRadius: 10,
+  elevation: 2,
 };
 
 function asRecord(value: unknown): RawRecord | undefined {
@@ -138,15 +111,6 @@ function formatDate(value: string | undefined): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-}
-
-function getInitials(name?: string, email?: string): string {
-  const raw = (name || email || 'Traveler').trim();
-  const base = raw.includes('@') ? raw.split('@')[0] : raw;
-  const parts = base.replace(/[._-]+/g, ' ').split(/\s+/).filter(Boolean);
-  const first = parts[0]?.[0] ?? 'T';
-  const second = parts[1]?.[0] ?? parts[0]?.[1] ?? 'R';
-  return `${first}${second}`.toUpperCase();
 }
 
 function getDisplayName(profile: ProfileView): string {
@@ -199,73 +163,85 @@ function getTripStats(payload: unknown): ProfileStats {
   };
 }
 
-function SectionTitle({ title, eyebrow, mode }: { title: string; eyebrow?: string; mode: Mode }) {
-  const colors = palette[mode];
-  return (
-    <View style={styles.sectionTitle}>
-      {eyebrow ? <Text style={[styles.eyebrow, { color: colors.muted }]}>{eyebrow}</Text> : null}
-      <Text style={[styles.sectionHeading, { color: colors.text }]}>{title}</Text>
-    </View>
-  );
+function SectionLabel({ children }: { children: string }) {
+  return <Text style={styles.sectionLabel}>{children}</Text>;
 }
 
-function InfoRow({
+function MenuDivider() {
+  return <View style={styles.menuDivider} />;
+}
+
+function PerforatedDivider() {
+  return <View style={styles.perforatedWrap}>
+    <View style={styles.perforatedLine} />
+  </View>;
+}
+
+function MenuRow({
   icon,
   label,
-  value,
-  mode,
+  subtitle,
+  onPress,
+  iconVariant = 'green',
 }: {
   icon: FeatherName;
   label: string;
-  value: string;
-  mode: Mode;
+  subtitle?: string;
+  onPress: () => void;
+  iconVariant?: 'green' | 'neutral';
 }) {
-  const colors = palette[mode];
   return (
-    <View style={[styles.infoRow, { borderColor: colors.border }]}> 
-      <View style={[styles.rowIcon, { backgroundColor: colors.accentSoft }]}> 
-        <Feather name={icon} size={16} color={colors.accent} />
+    <TouchableOpacity style={styles.menuRow} onPress={onPress} activeOpacity={0.75}>
+      <View style={styles.menuRowLeft}>
+        <View
+          style={[
+            styles.menuIcon,
+            iconVariant === 'green' ? styles.menuIconGreen : styles.menuIconNeutral,
+          ]}
+        >
+          <Feather name={icon} size={16} color={iconVariant === 'green' ? GREEN : TEXT} />
+        </View>
+        <View style={styles.menuCopy}>
+          <Text style={styles.menuLabel}>{label}</Text>
+          {subtitle ? <Text style={styles.menuSubtitle}>{subtitle}</Text> : null}
+        </View>
       </View>
-      <View style={styles.rowCopy}>
-        <Text style={[styles.rowLabel, { color: colors.muted }]}>{label}</Text>
-        <Text style={[styles.rowValue, { color: colors.text }]} numberOfLines={1}>
-          {value}
-        </Text>
-      </View>
-    </View>
+      <Feather name="chevron-right" size={14} color="#D1D5DB" />
+    </TouchableOpacity>
   );
 }
 
-function SettingRow({
-  icon,
-  label,
-  value,
-  mode,
-}: {
-  icon: FeatherName;
-  label: string;
-  value: string;
-  mode: Mode;
-}) {
-  const colors = palette[mode];
-  return (
-    <View style={styles.settingRow}>
-      <View style={[styles.settingIcon, { backgroundColor: colors.elevated }]}> 
-        <Feather name={icon} size={16} color={colors.accent} />
-      </View>
-      <Text style={[styles.settingLabel, { color: colors.text }]}>{label}</Text>
-      <Text style={[styles.settingValue, { color: colors.muted }]} numberOfLines={1}>
-        {value}
-      </Text>
-    </View>
-  );
+function MenuCard({ children }: { children: React.ReactNode }) {
+  return <View style={[styles.menuCard, CARD_SHADOW]}>{children}</View>;
+}
+
+function pickBudgetTripId(payload: unknown): string | null {
+  const list = getRawList(payload);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  for (const raw of list) {
+    const status = String(raw.status ?? '').toUpperCase();
+    if (status === 'CANCELLED') continue;
+    const id = String(raw.id ?? raw.tripId ?? '');
+    if (!id) continue;
+    if (status === 'ACTIVE' || status === 'CONFIRMED' || status === 'PENDING') return id;
+  }
+
+  for (const raw of list) {
+    const status = String(raw.status ?? '').toUpperCase();
+    if (status === 'CANCELLED') continue;
+    const id = String(raw.id ?? raw.tripId ?? '');
+    if (id) return id;
+  }
+
+  return null;
 }
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const mode: Mode = colorScheme === 'dark' ? 'dark' : 'light';
-  const colors = palette[mode];
+  const insets = useSafeAreaInsets();
+  useRequireAuth();
 
   const [profile, setProfile] = useState<ProfileView | null>(null);
   const [profileMeta, setProfileMeta] = useState<ProfileMeta>(defaultMeta);
@@ -277,6 +253,9 @@ export default function ProfileScreen() {
   const [saveLoading, setSaveLoading] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [showPersonalEdit, setShowPersonalEdit] = useState(false);
+  const [showTravelPrefs, setShowTravelPrefs] = useState(false);
+  const [budgetTripId, setBudgetTripId] = useState<string | null>(null);
 
   const loadProfile = useCallback(async () => {
     setError(null);
@@ -294,6 +273,7 @@ export default function ProfileScreen() {
       setName(view.name);
       setPhone(view.phone);
       setStats(getTripStats(tripsRes.data));
+      setBudgetTripId(pickBudgetTripId(tripsRes.data));
     } catch (e: unknown) {
       setError(getErrorMessage(e));
     } finally {
@@ -304,8 +284,33 @@ export default function ProfileScreen() {
   useFocusEffect(
     useCallback(() => {
       loadProfile();
-    }, [loadProfile])
+    }, [loadProfile]),
   );
+
+  const uploadPhoto = useCallback(async (uri: string) => {
+    setUploadLoading(true);
+    setSaveError(null);
+    try {
+      const response = await userApi.uploadPhoto(uri);
+      const avatarUrl = extractUploadedPhotoUrl(response.data);
+      if (avatarUrl) {
+        setProfile((prev) => {
+          const base = prev ?? { name: '', email: '', phone: '', photoUrl: null };
+          return { ...base, photoUrl: avatarUrl };
+        });
+      } else {
+        const res = await userApi.getProfile();
+        const raw = (res.data ?? {}) as RawRecord;
+        setProfile(mapProfileToView(raw));
+        setProfileMeta(deriveProfileMeta(raw));
+      }
+    } catch (e: unknown) {
+      const message = getErrorMessage(e) || 'Failed to upload photo. Please try again.';
+      showToast('error', message);
+    } finally {
+      setUploadLoading(false);
+    }
+  }, []);
 
   const handlePhotoPress = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -321,30 +326,10 @@ export default function ProfileScreen() {
       quality: 0.8,
     });
 
-    if (result.canceled || !result.assets?.[0]?.uri) return;
-    setUploadLoading(true);
-    setSaveError(null);
-
-    try {
-      const formData = new FormData();
-      formData.append('photo', {
-        uri: result.assets[0].uri,
-        type: 'image/jpeg',
-        name: 'avatar.jpg',
-      } as unknown as Blob);
-
-      await userApi.uploadPhoto(formData);
-      const res = await userApi.getProfile();
-      const raw = (res.data ?? {}) as RawRecord;
-      const view = mapProfileToView(raw);
-      setProfile(view);
-      setProfileMeta(deriveProfileMeta(raw));
-    } catch (e: unknown) {
-      setSaveError(getErrorMessage(e));
-    } finally {
-      setUploadLoading(false);
+    if (!result.canceled && result.assets[0]?.uri) {
+      await uploadPhoto(result.assets[0].uri);
     }
-  }, []);
+  }, [uploadPhoto]);
 
   const handleSave = useCallback(async () => {
     setSaveError(null);
@@ -390,34 +375,54 @@ export default function ProfileScreen() {
     Alert.alert('Contact Management', email);
   }, []);
 
+  const handleHelpSupport = useCallback(() => {
+    Alert.alert('Help & Support', 'Contact ITINE management', [
+      ...MANAGEMENT_EMAILS.map((email) => ({
+        text: email,
+        onPress: () => handleContactManagement(email),
+      })),
+      { text: `About · ${APP_VERSION}`, style: 'default' as const },
+      { text: 'Cancel', style: 'cancel' as const },
+    ]);
+  }, [handleContactManagement]);
+
+  const handlePaymentBudget = useCallback(() => {
+    if (budgetTripId) {
+      router.push({ pathname: '/budget-breakdown', params: { tripId: budgetTripId } });
+      return;
+    }
+    Alert.alert('No trips yet', 'Plan a trip to view your budget breakdown.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Plan a trip', onPress: () => router.push('/new-trip') },
+    ]);
+  }, [budgetTripId, router]);
+
+  const handlePrivacySecurity = useCallback(() => {
+    Alert.alert(
+      'Privacy & Security',
+      `Appearance: ${profileMeta.themePreference}\nStatus: ${profileMeta.status}\nMember since: ${profileMeta.memberSince}`,
+    );
+  }, [profileMeta.memberSince, profileMeta.status, profileMeta.themePreference]);
+
   const currentProfile = useMemo<ProfileView>(
     () => profile ?? { name: '', email: '', phone: '', photoUrl: null },
-    [profile]
+    [profile],
   );
   const displayName = useMemo(() => getDisplayName(currentProfile), [currentProfile]);
-  const initials = useMemo(
-    () => getInitials(displayName, currentProfile.email),
-    [currentProfile.email, displayName]
-  );
-
   if (loading && !profile) {
     return (
-      <View style={[styles.screen, styles.centered, { backgroundColor: colors.background }]}> 
-        <View style={[styles.glowOrbTop, { backgroundColor: colors.glowA }]} />
-        <View style={[styles.glowOrbBottom, { backgroundColor: colors.glowB }]} />
-        <ActivityIndicator size="large" color={colors.accent} />
-        <Text style={[styles.loadingText, { color: colors.muted }]}>Loading profile...</Text>
+      <View style={[styles.screen, styles.centered]}>
+        <ActivityIndicator size="large" color={GREEN} />
+        <Text style={styles.loadingText}>Loading profile...</Text>
       </View>
     );
   }
 
   if (error && !profile) {
     return (
-      <View style={[styles.screen, styles.centered, { backgroundColor: colors.background }]}> 
-        <View style={[styles.glowOrbTop, { backgroundColor: colors.glowA }]} />
-        <View style={[styles.glowOrbBottom, { backgroundColor: colors.glowB }]} />
-        <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
-        <TouchableOpacity style={[styles.retryBtn, { backgroundColor: colors.accent }]} onPress={loadProfile}>
+      <View style={[styles.screen, styles.centered]}>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={loadProfile}>
           <Text style={styles.retryBtnText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -425,515 +430,311 @@ export default function ProfileScreen() {
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.background }]}> 
-      <View style={[styles.glowOrbTop, { backgroundColor: colors.glowA }]} />
-      <View style={[styles.glowOrbBottom, { backgroundColor: colors.glowB }]} />
-
+    <View style={styles.screen}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.eyebrow, { color: colors.muted }]}>PROFILE</Text>
-        <Text style={[styles.title, { color: colors.text }]}>Traveler Profile</Text>
+        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+          <Text style={styles.pageTitle}>Profile</Text>
 
-        <View style={[styles.heroCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}> 
-          <View style={styles.heroPattern} />
-          <TouchableOpacity style={styles.avatarButton} onPress={handlePhotoPress} disabled={uploadLoading}>
-            {currentProfile.photoUrl ? (
-              <Image source={{ uri: currentProfile.photoUrl }} style={styles.avatarImage} />
-            ) : (
-              <View style={[styles.avatarFallback, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}> 
-                <Text style={[styles.avatarInitials, { color: colors.text }]}>{initials}</Text>
+          <View style={styles.profileHero}>
+            <ProfileAvatar
+              photoUrl={currentProfile.photoUrl}
+              name={displayName}
+              onPress={handlePhotoPress}
+              uploadLoading={uploadLoading}
+            />
+
+            <Text style={styles.displayName}>{displayName}</Text>
+            <View style={styles.travelBadge}>
+              <Feather name="navigation" size={11} color={GREEN} />
+              <Text style={styles.travelBadgeText}>{profileMeta.travelStyle}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.body}>
+          {showPersonalEdit ? (
+            <View style={[styles.editCard, CARD_SHADOW]}>
+              <Text style={styles.editCardTitle}>Personal Information</Text>
+              <Text style={styles.inputLabel}>Full name</Text>
+              <TextInput
+                style={styles.input}
+                value={name}
+                onChangeText={setName}
+                placeholder="Your name"
+                placeholderTextColor="#9CA3AF"
+                autoCapitalize="words"
+              />
+              <Text style={styles.inputLabel}>Email</Text>
+              <TextInput
+                style={[styles.input, styles.inputReadOnly]}
+                value={currentProfile.email}
+                editable={false}
+                placeholder="Email"
+                placeholderTextColor="#9CA3AF"
+              />
+              <Text style={styles.inputLabel}>Phone</Text>
+              <TextInput
+                style={styles.input}
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="Phone number"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="phone-pad"
+              />
+              <View style={styles.metaList}>
+                <Text style={styles.metaLine}>University · {profileMeta.university}</Text>
+                <Text style={styles.metaLine}>Student ID · {profileMeta.studentId}</Text>
+                <Text style={styles.metaLine}>Member since · {profileMeta.memberSince}</Text>
               </View>
-            )}
-            <View style={[styles.cameraBadge, { backgroundColor: colors.accent }]}> 
-              {uploadLoading ? (
-                <ActivityIndicator size="small" color="#ffffff" />
-              ) : (
-                <Feather name="camera" size={14} color="#ffffff" />
-              )}
+              {saveError ? <Text style={styles.saveErrorText}>{saveError}</Text> : null}
+              <TouchableOpacity
+                style={styles.saveBtn}
+                onPress={handleSave}
+                disabled={saveLoading}
+                activeOpacity={0.9}
+              >
+                {saveLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.saveBtnText}>Save profile</Text>
+                )}
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
+          ) : null}
 
-          <View style={styles.heroCopy}>
-            <Text style={[styles.heroName, { color: colors.text }]} numberOfLines={1}>
-              {displayName}
-            </Text>
-            <Text style={[styles.heroEmail, { color: colors.muted }]} numberOfLines={1}>
-              {currentProfile.email || 'Email not added'}
-            </Text>
-            <View style={styles.badgeRow}>
-              <View style={[styles.statusBadge, { backgroundColor: colors.successSoft }]}> 
-                <Feather name="check-circle" size={13} color={colors.success} />
-                <Text style={[styles.statusText, { color: colors.success }]}>{profileMeta.status}</Text>
-              </View>
-              <View style={[styles.roleBadge, { backgroundColor: colors.accentSoft }]}> 
-                <Text style={[styles.roleText, { color: colors.accent }]}>{profileMeta.role}</Text>
-              </View>
+          {showTravelPrefs ? (
+            <View style={[styles.editCard, CARD_SHADOW]}>
+              <Text style={styles.editCardTitle}>Travel Preferences</Text>
+              <Text style={styles.metaLine}>Style · {profileMeta.travelStyle}</Text>
+              <Text style={styles.metaLine}>Language · {profileMeta.language}</Text>
+              <Text style={styles.metaLine}>Appearance · {profileMeta.themePreference}</Text>
+              <Text style={styles.metaLine}>Role · {profileMeta.role}</Text>
+              <Text style={styles.metaLine}>Upcoming trips · {stats.upcomingTrips}</Text>
+              <Text style={styles.metaLine}>Completed trips · {stats.completedTrips}</Text>
+              <Text style={styles.metaLine}>Saved destinations · {stats.savedDestinations}</Text>
             </View>
-          </View>
-        </View>
+          ) : null}
 
-        <View style={styles.statsGrid}>
-          <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}> 
-            <Text style={[styles.statValue, { color: colors.text }]}>{stats.upcomingTrips}</Text>
-            <Text style={[styles.statLabel, { color: colors.muted }]}>Upcoming</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}> 
-            <Text style={[styles.statValue, { color: colors.text }]}>{stats.completedTrips}</Text>
-            <Text style={[styles.statLabel, { color: colors.muted }]}>Completed</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}> 
-            <Text style={[styles.statValue, { color: colors.text }]}>{stats.savedDestinations}</Text>
-            <Text style={[styles.statLabel, { color: colors.muted }]}>Destinations</Text>
-          </View>
-        </View>
-
-        <SectionTitle eyebrow="ACCOUNT" title="Profile details" mode={mode} />
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}> 
-          <Text style={[styles.inputLabel, { color: colors.muted }]}>Full name</Text>
-          <TextInput
-            style={[styles.input, { backgroundColor: colors.input, borderColor: colors.border, color: colors.text }]}
-            value={name}
-            onChangeText={setName}
-            placeholder="Your name"
-            placeholderTextColor={colors.subtle}
-            autoCapitalize="words"
-          />
-
-          <Text style={[styles.inputLabel, { color: colors.muted }]}>Email</Text>
-          <TextInput
-            style={[
-              styles.input,
-              styles.inputReadOnly,
-              { backgroundColor: colors.input, borderColor: colors.border, color: colors.text },
-            ]}
-            value={currentProfile.email}
-            editable={false}
-            placeholder="Email"
-            placeholderTextColor={colors.subtle}
-          />
-
-          <Text style={[styles.inputLabel, { color: colors.muted }]}>Phone</Text>
-          <TextInput
-            style={[styles.input, { backgroundColor: colors.input, borderColor: colors.border, color: colors.text }]}
-            value={phone}
-            onChangeText={setPhone}
-            placeholder="Phone number"
-            placeholderTextColor={colors.subtle}
-            keyboardType="phone-pad"
-          />
-
-          <View style={styles.detailRows}>
-            <InfoRow icon="phone" label="Phone" value={phone || 'Not added'} mode={mode} />
-            <InfoRow icon="book-open" label="University" value={profileMeta.university} mode={mode} />
-            <InfoRow icon="credit-card" label="Student ID" value={profileMeta.studentId} mode={mode} />
-            <InfoRow icon="calendar" label="Member since" value={profileMeta.memberSince} mode={mode} />
+          <View style={styles.section}>
+            <SectionLabel>Account</SectionLabel>
+            <MenuCard>
+              <MenuRow
+                icon="user"
+                label="Personal Information"
+                onPress={() => {
+                  setShowTravelPrefs(false);
+                  setShowPersonalEdit((v) => !v);
+                }}
+              />
+              <MenuDivider />
+              <MenuRow
+                icon="sliders"
+                label="Travel Preferences"
+                onPress={() => {
+                  setShowPersonalEdit(false);
+                  setShowTravelPrefs((v) => !v);
+                }}
+              />
+            </MenuCard>
           </View>
 
-          {saveError ? <Text style={[styles.saveErrorText, { color: colors.danger }]}>{saveError}</Text> : null}
-
-          <TouchableOpacity
-            style={[styles.saveBtn, { backgroundColor: colors.accent }]}
-            onPress={handleSave}
-            disabled={saveLoading}
-          >
-            {saveLoading ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
-              <>
-                <Feather name="save" size={16} color="#ffffff" />
-                <Text style={styles.saveBtnText}>Save profile</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        <SectionTitle eyebrow="SETTINGS" title="App preferences" mode={mode} />
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}> 
-          <SettingRow icon="bell" label="Notifications" value="Trip reminders on" mode={mode} />
-          <SettingRow icon="moon" label="Appearance" value={profileMeta.themePreference || 'System'} mode={mode} />
-          <SettingRow icon="globe" label="Language" value={profileMeta.language} mode={mode} />
-          <SettingRow icon="shield" label="Privacy & Security" value="Protected" mode={mode} />
-          <SettingRow icon="sliders" label="App Preferences" value="Personalized" mode={mode} />
-        </View>
-
-        <SectionTitle eyebrow="TRAVEL" title="Preferences" mode={mode} />
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}> 
-          <InfoRow icon="compass" label="Preferred travel style" value={profileMeta.travelStyle} mode={mode} />
-          <InfoRow icon="map-pin" label="Saved destinations" value={`${stats.savedDestinations} places`} mode={mode} />
-          <InfoRow icon="briefcase" label="Upcoming trips" value={`${stats.upcomingTrips} trips`} mode={mode} />
-          <InfoRow icon="flag" label="Completed trips" value={`${stats.completedTrips} trips`} mode={mode} />
-        </View>
-
-        <SectionTitle eyebrow="SUPPORT" title="Management" mode={mode} />
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}> 
-          <View style={styles.supportHeader}>
-            <View style={[styles.supportIcon, { backgroundColor: colors.accentSoft }]}> 
-              <Feather name="headphones" size={18} color={colors.accent} />
-            </View>
-            <View style={styles.supportCopy}>
-              <Text style={[styles.supportTitle, { color: colors.text }]}>Contact Management</Text>
-              <Text style={[styles.supportText, { color: colors.muted }]}> 
-                Reach the ITINE management team for account or graduation jury support.
-              </Text>
-            </View>
+          <View style={styles.section}>
+            <SectionLabel>Finance</SectionLabel>
+            <MenuCard>
+              <MenuRow
+                icon="credit-card"
+                label="Payment & Budget"
+                subtitle="View trip budget breakdown"
+                onPress={handlePaymentBudget}
+              />
+              <PerforatedDivider />
+              <MenuRow
+                icon="link"
+                label="Connected Accounts"
+                subtitle="Uber, Airbnb, etc."
+                onPress={() => Alert.alert('Connected Accounts', 'Account linking is coming soon.')}
+              />
+            </MenuCard>
           </View>
 
-          {MANAGEMENT_EMAILS.map((email) => (
-            <TouchableOpacity
-              key={email}
-              activeOpacity={0.82}
-              onPress={() => handleContactManagement(email)}
-              style={[styles.emailRow, { backgroundColor: colors.elevated, borderColor: colors.border }]}
-            >
-              <Feather name="mail" size={16} color={colors.accent} />
-              <Text style={[styles.emailText, { color: colors.text }]} numberOfLines={1}>
-                {email}
-              </Text>
-              <Feather name="external-link" size={15} color={colors.muted} />
-            </TouchableOpacity>
-          ))}
-        </View>
+          <View style={styles.section}>
+            <SectionLabel>More</SectionLabel>
+            <MenuCard>
+              <MenuRow
+                icon="shield"
+                label="Privacy & Security"
+                onPress={handlePrivacySecurity}
+                iconVariant="neutral"
+              />
+              <MenuDivider />
+              <MenuRow
+                icon="help-circle"
+                label="Help & Support"
+                onPress={handleHelpSupport}
+                iconVariant="neutral"
+              />
+            </MenuCard>
+          </View>
 
-        <SectionTitle eyebrow="APP" title="About ITINE" mode={mode} />
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}> 
-          <SettingRow icon="navigation" label="About ITINE" value="Travel wallet and itinerary companion" mode={mode} />
-          <SettingRow icon="info" label="Version" value={APP_VERSION} mode={mode} />
-
-          <TouchableOpacity
-            style={[styles.logoutBtn, { backgroundColor: colors.dangerSoft, borderColor: colors.danger }]}
-            onPress={handleLogout}
-          >
-            <Feather name="log-out" size={16} color={colors.danger} />
-            <Text style={[styles.logoutBtnText, { color: colors.danger }]}>Sign out</Text>
+          <TouchableOpacity style={[styles.logoutBtn, CARD_SHADOW]} onPress={handleLogout} activeOpacity={0.88}>
+            <Feather name="log-out" size={16} color="#EF4444" />
+            <Text style={styles.logoutText}>Log Out</Text>
           </TouchableOpacity>
         </View>
-
-        <View style={styles.spacer} />
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
+  screen: { flex: 1, backgroundColor: BG },
   scroll: { flex: 1 },
-  content: {
-    paddingBottom: 56,
-    paddingHorizontal: 20,
-    paddingTop: 58,
-  },
-  centered: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  glowOrbTop: {
-    borderRadius: 999,
-    height: 320,
-    position: 'absolute',
-    right: -90,
-    top: -110,
-    width: 320,
-  },
-  glowOrbBottom: {
-    borderRadius: 999,
-    bottom: -130,
-    height: 280,
-    left: -90,
-    position: 'absolute',
-    width: 280,
-  },
-  loadingText: {
-    fontSize: 14,
-    marginTop: 14,
-  },
-  errorText: {
-    marginBottom: 16,
-    textAlign: 'center',
-  },
+  scrollContent: { flexGrow: 1 },
+  centered: { alignItems: 'center', justifyContent: 'center', padding: 24 },
+  loadingText: { fontSize: 14, marginTop: 14, color: MUTED },
+  errorText: { marginBottom: 16, textAlign: 'center', color: '#EF4444' },
   retryBtn: {
     alignItems: 'center',
-    borderRadius: 14,
+    borderRadius: 20,
     paddingHorizontal: 24,
     paddingVertical: 12,
+    backgroundColor: GREEN,
   },
-  retryBtnText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '800',
+  retryBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  header: {
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    backgroundColor: BG,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
+    alignItems: 'center',
   },
-  eyebrow: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1.4,
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 29,
-    fontWeight: '900',
-    marginBottom: 18,
-  },
-  heroCard: {
-    borderRadius: 28,
-    borderWidth: 1,
-    elevation: 8,
-    overflow: 'hidden',
-    padding: 18,
-    shadowOffset: { width: 0, height: 18 },
-    shadowOpacity: 0.16,
-    shadowRadius: 28,
-  },
-  heroPattern: {
-    backgroundColor: 'rgba(99,102,241,0.16)',
-    borderRadius: 140,
-    height: 190,
-    position: 'absolute',
-    right: -70,
-    top: -82,
-    width: 190,
-  },
-  avatarButton: {
+  pageTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: TEXT,
     alignSelf: 'flex-start',
-    marginBottom: 16,
+    width: '100%',
+    marginBottom: 24,
+    letterSpacing: -0.3,
   },
-  avatarImage: {
-    borderRadius: 42,
-    height: 84,
-    width: 84,
-  },
-  avatarFallback: {
-    alignItems: 'center',
-    borderRadius: 42,
-    borderWidth: 1,
-    height: 84,
-    justifyContent: 'center',
-    width: 84,
-  },
-  avatarInitials: {
-    fontSize: 25,
-    fontWeight: '900',
-  },
-  cameraBadge: {
-    alignItems: 'center',
-    borderRadius: 15,
-    bottom: -2,
-    height: 30,
-    justifyContent: 'center',
-    position: 'absolute',
-    right: -4,
-    width: 30,
-  },
-  heroCopy: { gap: 8 },
-  heroName: {
-    fontSize: 25,
-    fontWeight: '900',
-  },
-  heroEmail: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  badgeRow: {
+  profileHero: { alignItems: 'center', width: '100%' },
+  displayName: { fontSize: 20, fontWeight: '700', color: TEXT, marginBottom: 8 },
+  travelBadge: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 4,
-  },
-  statusBadge: {
     alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
     borderRadius: 999,
-    flexDirection: 'row',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  roleBadge: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-  },
-  roleText: {
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 14,
-  },
-  statCard: {
-    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
     borderWidth: 1,
-    flex: 1,
-    padding: 14,
+    borderColor: 'rgba(16, 185, 129, 0.2)',
   },
-  statValue: {
-    fontSize: 23,
-    fontWeight: '900',
-    marginBottom: 3,
+  travelBadgeText: { fontSize: 12, fontWeight: '600', color: GREEN },
+  body: { paddingHorizontal: 24, paddingTop: 24, gap: 0 },
+  section: { marginBottom: 24 },
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: MUTED,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 12,
+    paddingHorizontal: 8,
   },
-  statLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  sectionTitle: {
-    marginBottom: 10,
-    marginTop: 24,
-  },
-  sectionHeading: {
-    fontSize: 21,
-    fontWeight: '900',
-  },
-  card: {
+  menuCard: {
+    backgroundColor: '#fff',
     borderRadius: 24,
     borderWidth: 1,
-    gap: 13,
+    borderColor: CARD_BORDER,
+    overflow: 'hidden',
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 16,
   },
+  menuRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 16, flex: 1 },
+  menuIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  menuIconGreen: { backgroundColor: 'rgba(16, 185, 129, 0.1)' },
+  menuIconNeutral: { backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: BORDER },
+  menuCopy: { flex: 1, minWidth: 0 },
+  menuLabel: { fontSize: 14, fontWeight: '600', color: TEXT },
+  menuSubtitle: { fontSize: 10, color: MUTED, marginTop: 2 },
+  menuDivider: { height: 1, backgroundColor: BORDER, marginHorizontal: 16 },
+  perforatedWrap: { paddingHorizontal: 16 },
+  perforatedLine: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  editCard: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    padding: 20,
+    marginBottom: 24,
+    gap: 10,
+  },
+  editCardTitle: { fontSize: 16, fontWeight: '700', color: TEXT, marginBottom: 4 },
   inputLabel: {
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1,
-    marginBottom: -5,
+    fontSize: 11,
+    fontWeight: '600',
+    color: MUTED,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 4,
   },
   input: {
     borderRadius: 14,
     borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '500',
+    color: TEXT,
     paddingHorizontal: 14,
-    paddingVertical: 13,
-  },
-  inputReadOnly: {
-    opacity: 0.78,
-  },
-  detailRows: {
-    gap: 0,
-    marginTop: 2,
-  },
-  infoRow: {
-    alignItems: 'center',
-    borderTopWidth: 1,
-    flexDirection: 'row',
-    gap: 12,
     paddingVertical: 12,
   },
-  rowIcon: {
-    alignItems: 'center',
-    borderRadius: 14,
-    height: 38,
-    justifyContent: 'center',
-    width: 38,
-  },
-  rowCopy: { flex: 1 },
-  rowLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    marginBottom: 3,
-  },
-  rowValue: {
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  saveErrorText: {
-    fontSize: 13,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
+  inputReadOnly: { opacity: 0.75 },
+  metaList: { gap: 6, marginTop: 4 },
+  metaLine: { fontSize: 13, color: MUTED, fontWeight: '500' },
+  saveErrorText: { fontSize: 13, color: '#EF4444', textAlign: 'center', fontWeight: '600' },
   saveBtn: {
+    marginTop: 8,
+    backgroundColor: GREEN,
+    borderRadius: 20,
+    paddingVertical: 14,
     alignItems: 'center',
-    borderRadius: 15,
-    flexDirection: 'row',
-    gap: 8,
-    height: 52,
-    justifyContent: 'center',
   },
-  saveBtnText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  settingRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 11,
-    minHeight: 42,
-  },
-  settingIcon: {
-    alignItems: 'center',
-    borderRadius: 13,
-    height: 36,
-    justifyContent: 'center',
-    width: 36,
-  },
-  settingLabel: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  settingValue: {
-    flexShrink: 1,
-    fontSize: 12,
-    fontWeight: '700',
-    maxWidth: 138,
-    textAlign: 'right',
-  },
-  supportHeader: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    gap: 12,
-  },
-  supportIcon: {
-    alignItems: 'center',
-    borderRadius: 16,
-    height: 42,
-    justifyContent: 'center',
-    width: 42,
-  },
-  supportCopy: { flex: 1 },
-  supportTitle: {
-    fontSize: 17,
-    fontWeight: '900',
-    marginBottom: 4,
-  },
-  supportText: {
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 19,
-  },
-  emailRow: {
-    alignItems: 'center',
-    borderRadius: 15,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 9,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  emailText: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: '800',
-  },
+  saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   logoutBtn: {
-    alignItems: 'center',
-    borderRadius: 15,
-    borderWidth: 1,
     flexDirection: 'row',
-    gap: 8,
-    height: 52,
+    alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: '#FEF2F2',
     marginTop: 4,
   },
-  logoutBtnText: {
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  spacer: { height: 34 },
+  logoutText: { fontSize: 14, fontWeight: '700', color: '#EF4444' },
 });
