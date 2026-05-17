@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -207,6 +208,15 @@ export default function NewTripScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
+  }, [fadeAnim]);
 
   const currentStep = useMemo(
     () => getCurrentStepIndex(destination, origin, startDate, endDate, budget),
@@ -500,6 +510,7 @@ export default function NewTripScreen() {
                 </View>
               </SectionCard>
             </View>
+            </Animated.View>
           </ScrollView>
         </KeyboardAvoidingView>
 

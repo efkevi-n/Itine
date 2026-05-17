@@ -11,26 +11,28 @@ import {
   TextInput,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
 import { userApi } from "@/api/user";
 import { tripsApi } from "@/api/trips";
-import { TripCard, type TripCardData } from "@/components/TripCard";
+import type { TripCardData } from "@/components/TripCard";
 import { Toast } from "@/components/Toast";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { useConnectivity } from "@/hooks/useConnectivity";
 import { useToastStore } from "@/utils/toast";
 import { getAccessToken, clearTokens } from "@/utils/auth";
+import { cacheTrip, getCachedTrip, getCachedTripIds } from "@/utils/offlineCache";
 import {
-  getRawList,
   normalizeTrip,
   getCity,
   STATUS_COLORS,
   formatDateRange,
+  filterTripsByTab,
+  type HomeTripFilter,
 } from '@/utils/homeHelpers';
 import { UserAvatar } from '@/components/UserAvatar';
 import { TripCoverImage } from '@/components/TripCoverImage';
-import { getResolvedProfilePhotoUrl, mapProfileToView } from '@/utils/profileMappers';
+import { getResolvedProfilePhotoUrl } from '@/utils/profileMappers';
 
 type RawRecord = Record<string, unknown>;
 
@@ -79,8 +81,14 @@ function getCompactSubtitle(trip: TripCardData): string {
   return `${getCountry(trip.destination)} • ${formatDateRange(trip.startDate, trip.endDate)}`;
 }
 
-type HomeTripFilter = 'all' | 'upcoming' | 'active' | 'completed';
 type QuickStatKey = 'total' | 'active' | 'completed';
+
+const FILTER_CHIPS: { key: HomeTripFilter; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'upcoming', label: 'Upcoming' },
+  { key: 'active', label: 'Active' },
+  { key: 'completed', label: 'Completed' },
+];
 
 const QUICK_STAT_TO_FILTER: Record<QuickStatKey, HomeTripFilter> = {
   total: 'all',
@@ -122,17 +130,17 @@ function SkeletonCard() {
   return (
     <Animated.View
       style={[
-        styles.skeletonCard,
+        s.skeletonCard,
         { opacity: pulseAnim },
       ]}
     >
-      <View style={styles.skeletonHeader}>
-        <View style={styles.skeletonLine} />
-        <View style={styles.skeletonBadge} />
+      <View style={s.skeletonHeader}>
+        <View style={s.skeletonLine} />
+        <View style={s.skeletonBadge} />
       </View>
-      <View style={styles.skeletonContent}>
-        <View style={styles.skeletonLineSmall} />
-        <View style={styles.skeletonLineSmall} />
+      <View style={s.skeletonContent}>
+        <View style={s.skeletonLineSmall} />
+        <View style={s.skeletonLineSmall} />
       </View>
     </Animated.View>
   );
@@ -147,14 +155,13 @@ export default function HomeScreen() {
   const toastVisible = useToastStore((state) => state.visible);
   const hideToast = useToastStore((state) => state.hide);
   const [userName, setUserName] = useState<string>("");
+  const [userPhotoUrl, setUserPhotoUrl] = useState<string | null>(null);
   const [trips, setTrips] = useState<TripCardData[]>([]);
-  const [filteredTrips, setFilteredTrips] = useState<TripCardData[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [tripsLoading, setTripsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [tripFilter, setTripFilter] = useState<HomeTripFilter>('all');
   const [showFilters, setShowFilters] = useState(false);
 
@@ -194,6 +201,10 @@ export default function HomeScreen() {
           (profile?.email ? profile.email.split("@")[0] : "")) ||
         "Traveler";
       setUserName(name);
+      const photoUrl = getResolvedProfilePhotoUrl(
+        profileRes.data as Record<string, unknown>,
+      );
+      setUserPhotoUrl(photoUrl || null);
 
       const payload = tripsRes.data as unknown;
       console.log('TRIPS API RESPONSE:', JSON.stringify(payload, null, 2));
@@ -206,7 +217,6 @@ export default function HomeScreen() {
         normalizeTrip(t),
       );
       setTrips(normalized);
-      setFilteredTrips(normalized);
       setSearchQuery("");
       for (const t of list as Record<string, unknown>[]) {
         const id = String(t?.id ?? t?.tripId ?? "");
@@ -228,7 +238,6 @@ export default function HomeScreen() {
         }
         if (cached.length > 0) {
           setTrips(cached);
-          setFilteredTrips(cached);
           setError(null);
         } else setError("Offline. No cached trips.");
       } else {
@@ -272,21 +281,19 @@ export default function HomeScreen() {
 
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    if (query.trim() === "") {
-      setFilteredTrips(trips);
-    } else {
-      const lowerQuery = query.toLowerCase();
-      setFilteredTrips(
-        trips.filter((t) =>
-          t.destination.toLowerCase().includes(lowerQuery),
-        ),
-      );
-    }
-  }, [trips]);
+  }, []);
 
-  const userInitials = userName ? userName.slice(0, 2).toUpperCase() : "TR";
-  const quickStats = [
-    { label: "Total Trips", value: trips.length, accent: "#3b82f6" },
+  const { fullTripCards, compactTripCards } = useMemo(() => {
+    const featured = filteredTrips.filter((t) => t.status !== 'COMPLETED');
+    const completed = filteredTrips.filter((t) => t.status === 'COMPLETED');
+    return {
+      fullTripCards: featured.slice(0, 2),
+      compactTripCards: [...featured.slice(2), ...completed],
+    };
+  }, [filteredTrips]);
+
+  const quickStats: { key: QuickStatKey; label: string; value: number }[] = [
+    { key: 'total', label: 'Total Trips', value: trips.length },
     {
       key: 'active',
       label: 'Active',
@@ -404,13 +411,7 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={styles.screen}>
-      <View style={[styles.glowOrb, styles.glowOrbTop]} pointerEvents="none" />
-      <View
-        style={[styles.glowOrb, styles.glowOrbBottom]}
-        pointerEvents="none"
-      />
-
+    <View style={s.screen}>
       <Toast
         visible={toastVisible}
         message={toastMessage}
@@ -451,171 +452,99 @@ export default function HomeScreen() {
               </View>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={styles.avatar}
-            onPress={async () => {
-              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push("/(tabs)/profile");
-            }}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.avatarText}>{userInitials}</Text>
-          </TouchableOpacity>
+
+          <View style={s.searchRow}>
+            <View style={s.searchBar}>
+              <Feather name="search" size={18} color={GREY} style={s.searchIcon} />
+              <TextInput
+                style={s.searchInput}
+                placeholder="Search destinations..."
+                placeholderTextColor="#9CA3AF"
+                value={searchQuery}
+                onChangeText={handleSearch}
+              />
+            </View>
+            <TouchableOpacity
+              style={[s.filterBtn, showFilters && s.filterBtnActive]}
+              onPress={() => setShowFilters((v) => !v)}
+              activeOpacity={0.85}
+              accessibilityLabel="Toggle trip filters"
+            >
+              <Feather name="sliders" size={18} color={showFilters ? '#fff' : TEXT} />
+            </TouchableOpacity>
+          </View>
+
+          {showFilters ? (
+            <View style={s.filterChipRow}>
+              {FILTER_CHIPS.map(({ key, label }) => (
+                <TouchableOpacity
+                  key={key}
+                  style={[s.filterChip, tripFilter === key && s.filterChipActive]}
+                  onPress={() => setTripFilter(key)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[s.filterChipText, tripFilter === key && s.filterChipTextActive]}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
         </View>
 
-        <View style={styles.searchBar}>
-          <Feather
-            name="search"
-            size={16}
-            color="#4b5563"
-            style={styles.searchIcon}
-          />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search destinations..."
-            placeholderTextColor="#4b5563"
-            value={searchQuery}
-            onChangeText={handleSearch}
-          />
+        <View style={s.main}>
           <TouchableOpacity
             style={[s.planBtn, CARD_SHADOW]}
             onPress={() => router.push('/new-trip')}
             activeOpacity={0.92}
           >
-            <Feather name="plus" size={14} color="#fff" />
+            <Feather name="plus" size={18} color="#fff" />
             <Text style={s.planBtnText}>Plan a New Trip</Text>
           </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.ctaButton}
-          onPress={async () => {
-            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            router.push("/new-trip");
-          }}
-          activeOpacity={0.9}
-        >
-          <Animated.View
-            style={[
-              styles.ctaPulseRing,
-              {
-                opacity: pulseAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.35, 0.08],
-                }),
-                transform: [
-                  {
-                    scale: pulseAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [1, 1.06],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          />
-          <View style={styles.ctaRow}>
-            <Feather name="map" size={18} color="#ffffff" />
-            <Text style={styles.ctaText}>Plan a New Trip</Text>
-          </View>
-
-        <View style={styles.sectionTitleWrap}>
-          <Text style={styles.sectionEyebrow}>Your itinerary</Text>
-          <Text style={styles.sectionTitle}>Your Trips</Text>
-        </View>
-
-        {tripsLoading && trips.length === 0 ? (
-          <SkeletonLoader />
-        ) : trips.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <Feather
-              name="map"
-              size={64}
-              color="rgba(99,102,241,0.3)"
-              style={styles.emptyIcon}
-            />
-            <Text style={styles.emptyTitle}>No trips yet</Text>
-            <Text style={styles.emptySubtitle}>
-              Plan your first adventure and it will appear here
-            </Text>
-            <TouchableOpacity
-              style={styles.emptyButton}
-              onPress={async () => {
-                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push("/new-trip");
-              }}
-            >
-              <Text style={styles.emptyButtonText}>Plan a Trip</Text>
-            </TouchableOpacity>
-          </View>
-        ) : filteredTrips.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>
-              No trips match your search.
-            </Text>
-          </View>
-        ) : (
-          filteredTrips.map((trip) => (
-            <TouchableOpacity
-              key={trip.id}
-              style={[
-                styles.card,
-                {
-                  borderLeftWidth: 3,
-                  borderLeftColor: STATUS_COLORS[trip.status] ?? "#6366f1",
-                },
-              ]}
-              onPress={async () => {
-                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push({
-                  pathname: "/trip-detail",
-                  params: { tripId: trip.id },
-                });
-              }}
-              activeOpacity={0.88}
-            >
-              <View style={styles.cardHeader}>
-                <View style={styles.destinationRow}>
-                  <Feather
-                    name="map-pin"
-                    size={14}
-                    color="#6366f1"
-                    style={styles.cardPinIcon}
-                  />
-                  <Text style={styles.destination}>{trip.destination}</Text>
-                </View>
-                <View
-                  style={[
-                    styles.badge,
-                    {
-                      backgroundColor: `${
-                        STATUS_COLORS[trip.status] ?? "#6366f1"
-                      }22`,
-                    },
-                  ]}
+          <View style={s.statsRow}>
+            {quickStats.map((stat) => (
+              <TouchableOpacity
+                key={stat.key}
+                style={[
+                  s.statCard,
+                  CARD_SHADOW,
+                  stat.key === 'active' && tripFilter === 'active' && s.statCardActive,
+                ]}
+                onPress={() => handleQuickStatPress(stat.key)}
+                activeOpacity={0.88}
+              >
+                {stat.key === 'active' ? <View style={s.statTopBar} /> : null}
+                <Text style={s.statLabel}>{stat.label}</Text>
+                <Text
+                  style={[s.statValue, stat.key === 'active' && tripFilter === 'active' && s.statValueActive]}
                 >
-                  <Text
-                    style={[
-                      styles.badgeText,
-                      { color: STATUS_COLORS[trip.status] ?? "#6366f1" },
-                    ]}
-                  >
-                    {trip.status}
-                  </Text>
-                </View>
-              </View>
+                  {stat.value}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
-          {error ? (
-            <View style={s.errorBox}>
-              <Text style={s.errorText}>{error}</Text>
-            </View>
-          ) : tripsLoading && trips.length === 0 ? (
-            <ActivityIndicator color={GREEN} style={s.spinner} />
+          <View style={s.tripsHeader}>
+            <Text style={s.sectionHeading}>Your Trips</Text>
+          </View>
+
+          {tripsLoading && trips.length === 0 ? (
+            <SkeletonLoader />
           ) : trips.length === 0 ? (
             <View style={[s.emptyBox, CARD_SHADOW]}>
+              <Feather name="map" size={48} color={`${GREEN}66`} style={{ marginBottom: 12 }} />
               <Text style={s.emptyTitle}>No trips yet</Text>
               <Text style={s.emptyText}>
                 Plan your first trip and your travel wallet will appear here.
               </Text>
+              <TouchableOpacity
+                style={s.emptyCta}
+                onPress={() => router.push('/new-trip')}
+                activeOpacity={0.9}
+              >
+                <Text style={s.emptyCtaText}>Plan a Trip</Text>
+              </TouchableOpacity>
             </View>
           ) : filteredTrips.length === 0 ? (
             <View style={[s.emptyBox, CARD_SHADOW]}>
@@ -702,28 +631,9 @@ const s = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.07)",
-    borderRadius: 12,
-  },
-  searchIcon: { marginRight: 10 },
-  searchInput: { flex: 1, color: "#ffffff", fontSize: 15 },
-  filterBtn: { padding: 4, justifyContent: "center", alignItems: "center" },
-  ctaButton: {
-    width: "100%",
-    height: 54,
-    backgroundColor: "#6366f1",
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 28,
-    overflow: "visible",
-    position: "relative",
-  },
-  ctaPulseRing: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "rgba(99,102,241,0.45)",
+    borderColor: BORDER,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   main: { paddingHorizontal: 24, paddingTop: 24, gap: 0 },
   planBtn: {
@@ -784,45 +694,13 @@ const s = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  errorText: { color: "#f87171", textAlign: "center" },
-  loadingBox: { alignItems: "center", paddingVertical: 32 },
-  emptyBox: {
-    backgroundColor: "#13131f",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.07)",
-    borderRadius: 12,
-    padding: 40,
-    alignItems: "center",
-    justifyContent: "center",
+  tripCard: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    overflow: 'hidden',
+    marginBottom: 16,
   },
-  emptyIcon: {
-    marginBottom: 20,
-  },
-  emptyTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#ffffff",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: "#9ca3af",
-    marginBottom: 24,
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  emptyButton: {
-    backgroundColor: "#6366f1",
-    borderRadius: 10,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  emptyButtonText: {
-    color: "#ffffff",
-    fontWeight: "700",
-    fontSize: 14,
-  },
+  tripList: { gap: 16 },
   tripImageWrap: { height: 128, width: '100%', position: 'relative', backgroundColor: '#E5E7EB' },
   tripImageGradientTop: {
     ...StyleSheet.absoluteFillObject,
@@ -973,14 +851,36 @@ const s = StyleSheet.create({
     padding: 24,
     alignItems: 'center',
   },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: TEXT,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: GREY,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  emptyCta: {
+    backgroundColor: GREEN,
+    borderRadius: 999,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    marginTop: 8,
+  },
+  emptyCtaText: { color: '#fff', fontWeight: '600', fontSize: 14 },
   skeletonCard: {
-    backgroundColor: "#13131f",
-    borderRadius: 12,
+    backgroundColor: '#fff',
+    borderRadius: 24,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: BORDER,
     padding: 16,
-    overflow: "hidden",
+    overflow: 'hidden',
   },
   skeletonHeader: {
     flexDirection: "row",
@@ -990,14 +890,14 @@ const s = StyleSheet.create({
   },
   skeletonLine: {
     height: 18,
-    width: "60%",
-    backgroundColor: "rgba(255,255,255,0.06)",
+    width: '60%',
+    backgroundColor: LIGHT_GRAY,
     borderRadius: 8,
   },
   skeletonBadge: {
     height: 18,
-    width: "25%",
-    backgroundColor: "rgba(255,255,255,0.06)",
+    width: '25%',
+    backgroundColor: LIGHT_GRAY,
     borderRadius: 8,
   },
   skeletonContent: {
@@ -1005,7 +905,7 @@ const s = StyleSheet.create({
   },
   skeletonLineSmall: {
     height: 12,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: LIGHT_GRAY,
     borderRadius: 6,
     marginBottom: 8,
   },
