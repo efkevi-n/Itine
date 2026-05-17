@@ -1,6 +1,9 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Image, ActivityIndicator, StyleSheet } from 'react-native';
-import { theme } from '@/constants/theme';
+import { View, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { UserAvatar } from '@/components/UserAvatar';
+
+const GREEN = '#10B981';
 
 interface ProfileAvatarProps {
   photoUrl: string | null;
@@ -9,60 +12,77 @@ interface ProfileAvatarProps {
   uploadLoading: boolean;
 }
 
-function getInitials(name?: string): string {
-  const raw = (name ?? '').trim();
-  if (!raw) return 'TR';
-  const parts = raw.split(/\s+/).filter(Boolean);
-  const first = parts[0]?.[0] ?? 'T';
-  const second = (parts[1]?.[0] ?? parts[0]?.[1] ?? 'R') as string;
-  return `${first}${second}`.toUpperCase();
-}
-
 export function ProfileAvatar({ photoUrl, name, onPress, uploadLoading }: ProfileAvatarProps) {
   return (
-    <TouchableOpacity style={styles.container} onPress={onPress} disabled={uploadLoading}>
-      <View style={styles.wrapper}>
-        {photoUrl ? (
-          <Image source={{ uri: photoUrl }} style={styles.avatar} />
+    <TouchableOpacity
+      style={styles.container}
+      onPress={onPress}
+      disabled={uploadLoading}
+      activeOpacity={0.9}
+    >
+      <View style={styles.avatarRing}>
+        <UserAvatar photoUrl={photoUrl} name={name} size={88} />
+        {uploadLoading ? (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color={GREEN} />
+          </View>
+        ) : null}
+      </View>
+      <View style={styles.cameraBtn}>
+        {uploadLoading ? (
+          <ActivityIndicator size="small" color="#fff" />
         ) : (
-          <View style={styles.placeholder} accessibilityLabel="Profile initials">
-            <Text style={styles.initials}>{getInitials(name)}</Text>
-          </View>
-        )}
-        {uploadLoading && (
-          <View style={styles.overlay}>
-            <ActivityIndicator size="large" color={theme.colors.text} />
-          </View>
+          <Feather name="camera" size={14} color="#fff" />
         )}
       </View>
     </TouchableOpacity>
   );
 }
 
+const CARD_SHADOW = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.04,
+  shadowRadius: 10,
+  elevation: 2,
+};
+
 const styles = StyleSheet.create({
-  container: { alignSelf: 'center', marginBottom: 24 },
-  wrapper: { position: 'relative', width: 132, height: 132 },
-  avatar: { width: 132, height: 132, borderRadius: 66 },
-  placeholder: {
-    width: 132,
-    height: 132,
-    borderRadius: 66,
-    backgroundColor: theme.colors.card,
-    borderWidth: 2,
-    borderColor: theme.colors.border,
-    justifyContent: 'center',
+  container: { position: 'relative', marginBottom: 16 },
+  avatarRing: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    borderWidth: 4,
+    borderColor: '#fff',
+    overflow: 'hidden',
+    backgroundColor: '#F3F4F6',
     alignItems: 'center',
+    justifyContent: 'center',
+    ...CARD_SHADOW,
   },
-  initials: { color: theme.colors.text, fontSize: 28, fontWeight: '800', letterSpacing: 0.5 },
-  overlay: {
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
+  },
+  cameraBtn: {
     position: 'absolute',
-    top: 0,
-    left: 0,
     right: 0,
     bottom: 0,
-    borderRadius: 66,
-    backgroundColor: theme.colors.overlay,
-    justifyContent: 'center',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: GREEN,
+    borderWidth: 2,
+    borderColor: '#fff',
     alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
   },
 });

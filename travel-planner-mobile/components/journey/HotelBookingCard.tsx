@@ -3,6 +3,9 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Feather } from '@expo/vector-icons';
 
+const PLACEHOLDER_BG = '#E8F5EF';
+const PLACEHOLDER_ACCENT = '#10B981';
+
 export interface HotelBookingData {
   imageUrl: string;
   hotelName: string;
@@ -62,9 +65,17 @@ function StayDetail({ label, value, mode }: { label: string; value: string; mode
 export function HotelBookingCard({ hotel, mode }: HotelBookingCardProps) {
   const colors = palette[mode];
 
+  const hasImage = Boolean(hotel.imageUrl?.trim());
+
   return (
     <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
-      <Image source={{ uri: hotel.imageUrl }} style={styles.image} contentFit="cover" transition={180} />
+      {hasImage ? (
+        <Image source={{ uri: hotel.imageUrl }} style={styles.image} contentFit="cover" transition={180} />
+      ) : (
+        <View style={styles.imagePlaceholder}>
+          <Feather name="home" size={32} color={PLACEHOLDER_ACCENT} />
+        </View>
+      )}
       <View style={styles.copy}>
         <View style={styles.header}>
           <View style={styles.hotelTitle}>
@@ -117,6 +128,13 @@ const styles = StyleSheet.create({
   image: {
     height: 168,
     width: '100%',
+  },
+  imagePlaceholder: {
+    height: 168,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: PLACEHOLDER_BG,
   },
   copy: { gap: 18, padding: 18 },
   header: {

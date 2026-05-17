@@ -16,6 +16,9 @@ interface TripRouteMapProps {
     latitude?: number;
     longitude?: number;
   };
+  /** ITINE app screens use green accent + embedded layout without duplicate headers. */
+  variant?: 'journey' | 'itine';
+  embedded?: boolean;
 }
 
 interface RouteActivity {
@@ -41,6 +44,39 @@ interface DestinationFallback {
 }
 
 const NEUTRAL_COORDINATE: LatLng = { latitude: 0, longitude: 0 };
+
+const itinePalette = {
+  light: {
+    card: '#ffffff',
+    text: '#111827',
+    muted: '#6B7280',
+    border: '#F3F4F6',
+    soft: '#F8F8F6',
+    accent: '#10B981',
+    accentSoft: 'rgba(16, 185, 129, 0.1)',
+    hotel: '#3B82F6',
+    hotelSoft: 'rgba(59, 130, 246, 0.1)',
+    line: '#10B981',
+    marker: '#ffffff',
+    shadow: '#000000',
+    mapOverlay: 'rgba(255,255,255,0.92)',
+  },
+  dark: {
+    card: '#161b28',
+    text: '#f8fafc',
+    muted: '#94a3b8',
+    border: 'rgba(255,255,255,0.08)',
+    soft: 'rgba(255,255,255,0.05)',
+    accent: '#10B981',
+    accentSoft: 'rgba(16, 185, 129, 0.16)',
+    hotel: '#5eead4',
+    hotelSoft: 'rgba(45,212,191,0.16)',
+    line: '#10B981',
+    marker: '#101827',
+    shadow: '#020617',
+    mapOverlay: 'rgba(22,27,40,0.94)',
+  },
+};
 
 const palette = {
   light: {
@@ -395,8 +431,10 @@ export const TripRouteMap = memo(function TripRouteMap({
   mode,
   destination,
   hotel,
+  variant = 'journey',
+  embedded = false,
 }: TripRouteMapProps) {
-  const colors = palette[mode];
+  const colors = (variant === 'itine' ? itinePalette : palette)[mode];
   const mapRef = useRef<MapView | null>(null);
   const expandedMapRef = useRef<MapView | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -684,22 +722,32 @@ export const TripRouteMap = memo(function TripRouteMap({
     [colors, destination, hotel, selectedDay]
   );
 
-  return (
-    <View style={styles.section}>
-      <View style={styles.titleRow}>
-        <View>
-          <Text style={[styles.kicker, { color: colors.muted }]}>INTERACTIVE ROUTE</Text>
-          <Text style={[styles.title, { color: colors.text }]}>Trip Route Map</Text>
-        </View>
-        <View style={[styles.destinationPill, { backgroundColor: colors.accentSoft }]}> 
-          <Feather name="map-pin" size={13} color={colors.accent} />
-          <Text style={[styles.destinationText, { color: colors.accent }]} numberOfLines={1}>
-            {destination}
-          </Text>
-        </View>
-      </View>
+  const cardStyle = embedded
+    ? [styles.card, styles.cardEmbedded, { backgroundColor: colors.card, borderColor: colors.border }]
+    : [styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }];
 
-      <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }]}> 
+  return (
+    <View style={embedded ? undefined : styles.section}>
+      {!embedded ? (
+        <View style={styles.titleRow}>
+          <View>
+            <Text style={[styles.kicker, { color: colors.muted }]}>
+              {variant === 'itine' ? 'LIVE ROUTE' : 'INTERACTIVE ROUTE'}
+            </Text>
+            <Text style={[styles.title, { color: colors.text }]}>
+              {variant === 'itine' ? 'Route Map' : 'Trip Route Map'}
+            </Text>
+          </View>
+          <View style={[styles.destinationPill, { backgroundColor: colors.accentSoft }]}>
+            <Feather name="map-pin" size={13} color={colors.accent} />
+            <Text style={[styles.destinationText, { color: colors.accent }]} numberOfLines={1}>
+              {destination}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
+      <View style={cardStyle}>
         {renderMapContent(mapRef)}
         {renderDayChips()}
         {renderActivityPreview()}
@@ -782,6 +830,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 18 },
     shadowOpacity: 0.15,
     shadowRadius: 28,
+  },
+  cardEmbedded: {
+    borderRadius: 32,
+    borderWidth: 1,
+    elevation: 4,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
   },
   mapClip: {
     height: 260,
