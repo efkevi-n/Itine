@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -10,11 +10,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Animated,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useScreenInsets } from "@/hooks/useScreenInsets";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
@@ -260,7 +259,7 @@ function SectionCard({
 
 export default function NewTripScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { insets, top, stackScrollBottom } = useScreenInsets();
   const { isOnline } = useConnectivity();
   const [destination, setDestination] = useState("");
   const [origin, setOrigin] = useState("");
@@ -276,19 +275,6 @@ export default function NewTripScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
-  const [focusedField, setFocusedField] = useState<
-    "startDate" | "endDate" | null
-  >(null);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 400,
-      useNativeDriver: true,
-    }).start();
-  }, [fadeAnim]);
-
   const currentStep = useMemo(
     () => getCurrentStepIndex(destination, origin, startDate, endDate, budget),
     [destination, origin, startDate, endDate, budget],
@@ -411,9 +397,6 @@ export default function NewTripScreen() {
 
   const disabled = loading || !isOnline;
 
-  const inputBorder = (field: "startDate" | "endDate") =>
-    focusedField === field ? { borderColor: GREEN } : null;
-
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -470,6 +453,24 @@ export default function NewTripScreen() {
   return (
     <>
       <View style={styles.screen}>
+        <View style={[styles.header, { paddingTop: top }]}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity
+              style={styles.headerBackBtn}
+              onPress={async () => {
+                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.back();
+              }}
+              disabled={disabled}
+              activeOpacity={0.85}
+            >
+              <Feather name="arrow-left" size={18} color={TEXT} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Plan New Trip</Text>
+          </View>
+          <StepRail currentStep={currentStep} />
+        </View>
+
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -478,135 +479,118 @@ export default function NewTripScreen() {
             style={styles.scroll}
             contentContainerStyle={[
               styles.scrollContent,
-              { paddingBottom: 160 + insets.bottom },
+              { paddingBottom: stackScrollBottom },
             ]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <Animated.View style={{ opacity: fadeAnim }}>
-              <TouchableOpacity
-                style={styles.backBtn}
-                onPress={async () => {
-                  await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.back();
-                }}
-                disabled={disabled}
-              >
-                <Feather name="chevron-left" size={18} color="#6366f1" />
-                <Text style={styles.backText}>Back</Text>
-              </TouchableOpacity>
-
-              <Text style={styles.eyebrow}>NEW TRIP</Text>
-              <Text style={styles.title}>Plan Your Journey</Text>
-              <Text style={styles.subtitle}>Fill in the details below</Text>
-              <View style={styles.divider} />
-
-              <View style={styles.main}>
-                {error ? (
-                  <View style={styles.errorBox}>
-                    <Text style={styles.errorText}>{error}</Text>
-                  </View>
-                ) : null}
-
-                {!isOnline ? (
-                  <View style={styles.errorBox}>
-                    <Text style={styles.errorText}>
-                      {OFFLINE_MESSAGES.cannotCreateTrip}
-                    </Text>
-                  </View>
-                ) : null}
-
-                <SectionCard stepNum="01" title="Destination" icon="map-pin">
-                  <DestinationSearch
-                    placeholder="Where do you want to go?"
-                    value={destination}
-                    onSelect={(city, country) =>
-                      setDestination(`${city}, ${country}`)
-                    }
-                    editable={!disabled}
-                    variant="light"
-                  />
-                </SectionCard>
-
-                <SectionCard stepNum="02" title="Origin" icon="navigation">
-                  <DestinationSearch
-                    placeholder="Where are you flying from?"
-                    value={origin}
-                    onSelect={(city, country) =>
-                      setOrigin(`${city}, ${country}`)
-                    }
-                    editable={!disabled}
-                    variant="light"
-                  />
-                </SectionCard>
-
-                <View style={styles.field}>
-                  <Text style={styles.fieldLabel}>START DATE</Text>
-                  <TouchableOpacity
-                    activeOpacity={0.9}
-                    disabled={disabled}
-                    onPress={async () => {
-                      await Haptics.impactAsync(
-                        Haptics.ImpactFeedbackStyle.Light,
-                      );
-                      openDatePicker("startDate");
-                    }}
-                    style={[
-                      styles.input,
-                      styles.dateInput,
-                      inputBorder("startDate"),
-                    ]}
-                    onFocus={() => setFocusedField("startDate")}
-                    onBlur={() => setFocusedField(null)}
-                    accessibilityRole="button"
-                    accessibilityLabel="Pick start date"
-                  >
-                    <Text
-                      style={[
-                        styles.dateText,
-                        !startDate && styles.datePlaceholder,
-                      ]}
-                    >
-                      {startDate ? formatDateDisplay(startDate) : "Pick a date"}
-                    </Text>
-                    <Feather name="calendar" size={18} color="#9ca3af" />
-                  </TouchableOpacity>
+            <View style={styles.main}>
+              {error ? (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>{error}</Text>
                 </View>
+              ) : null}
 
-                <View style={styles.field}>
-                  <Text style={styles.fieldLabel}>END DATE</Text>
-                  <TouchableOpacity
-                    activeOpacity={0.9}
-                    disabled={disabled}
-                    onPress={async () => {
-                      await Haptics.impactAsync(
-                        Haptics.ImpactFeedbackStyle.Light,
-                      );
-                      openDatePicker("endDate");
-                    }}
-                    style={[
-                      styles.input,
-                      styles.dateInput,
-                      inputBorder("endDate"),
-                    ]}
-                    onFocus={() => setFocusedField("endDate")}
-                    onBlur={() => setFocusedField(null)}
-                    accessibilityRole="button"
-                    accessibilityLabel="Pick end date"
-                  >
-                    <Text
-                      style={[
-                        styles.dateText,
-                        !endDate && styles.datePlaceholder,
-                      ]}
-                    >
-                      {endDate ? formatDateDisplay(endDate) : "Pick a date"}
-                    </Text>
-                    <Feather name="calendar" size={18} color="#9ca3af" />
-                  </TouchableOpacity>
+              {!isOnline ? (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>
+                    {OFFLINE_MESSAGES.cannotCreateTrip}
+                  </Text>
                 </View>
+              ) : null}
 
-                <SectionCard stepNum="04" title="Budget" icon="credit-card">
+              <SectionCard stepNum="01" title="Destination" icon="map-pin">
+                <DestinationSearch
+                  placeholder="Where do you want to go?"
+                  value={destination}
+                  onSelect={(city, country) =>
+                    setDestination(`${city}, ${country}`)
+                  }
+                  editable={!disabled}
+                  variant="light"
+                />
+              </SectionCard>
+
+              <SectionCard stepNum="02" title="Origin" icon="navigation">
+                <DestinationSearch
+                  placeholder="Where are you flying from?"
+                  value={origin}
+                  onSelect={(city, country) =>
+                    setOrigin(`${city}, ${country}`)
+                  }
+                  editable={!disabled}
+                  variant="light"
+                />
+              </SectionCard>
+
+              <SectionCard stepNum="03" title="Dates" icon="calendar">
+                <View style={styles.datesRow}>
+                  <View style={styles.dateCol}>
+                    <Text style={styles.dateLabel}>Departure</Text>
+                    <TouchableOpacity
+                      activeOpacity={0.9}
+                      disabled={disabled}
+                      onPress={async () => {
+                        await Haptics.impactAsync(
+                          Haptics.ImpactFeedbackStyle.Light,
+                        );
+                        openDatePicker("startDate");
+                      }}
+                      style={styles.dateInput}
+                      accessibilityRole="button"
+                      accessibilityLabel="Pick departure date"
+                    >
+                      <Feather
+                        name="calendar"
+                        size={14}
+                        color={`${GREY}80`}
+                        style={styles.dateIcon}
+                      />
+                      <Text
+                        style={[
+                          styles.dateText,
+                          !startDate && styles.datePlaceholder,
+                        ]}
+                      >
+                        {startDate ? formatDateDisplay(startDate) : "Select"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.dateCol}>
+                    <Text style={styles.dateLabel}>Return</Text>
+                    <TouchableOpacity
+                      activeOpacity={0.9}
+                      disabled={disabled}
+                      onPress={async () => {
+                        await Haptics.impactAsync(
+                          Haptics.ImpactFeedbackStyle.Light,
+                        );
+                        openDatePicker("endDate");
+                      }}
+                      style={styles.dateInput}
+                      accessibilityRole="button"
+                      accessibilityLabel="Pick return date"
+                    >
+                      <Feather
+                        name="calendar"
+                        size={14}
+                        color={`${GREY}80`}
+                        style={styles.dateIcon}
+                      />
+                      <Text
+                        style={[
+                          styles.dateText,
+                          !endDate && styles.datePlaceholder,
+                        ]}
+                      >
+                        {endDate ? formatDateDisplay(endDate) : "Select"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </SectionCard>
+
+              <SectionCard stepNum="04" title="Budget" icon="credit-card">
                   <Text style={styles.budgetHint}>
                     Total budget for the entire trip (including flights & stay)
                   </Text>
@@ -648,12 +632,11 @@ export default function NewTripScreen() {
                     </View>
                   </View>
                 </SectionCard>
-              </View>
-            </Animated.View>
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
 
-        <View style={[styles.stickyCta, { bottom: 24 + insets.bottom }]}>
+        <View style={[styles.stickyCta, { bottom: insets.bottom + 16 }]}>
           <TouchableOpacity
             style={[styles.generateBtn, disabled && styles.generateBtnDisabled]}
             onPress={handleGenerate}
@@ -808,47 +791,14 @@ const styles = StyleSheet.create({
     gap: 16,
     marginBottom: 24,
   },
-  backBtn: {
-    flexDirection: "row",
+  headerBackBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(243, 244, 246, 0.5)",
     alignItems: "center",
-    alignSelf: "flex-start",
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    marginTop: 8,
-    marginBottom: 8,
+    justifyContent: "center",
   },
-  backText: { fontSize: 14, fontWeight: "600", color: "#6366f1", marginLeft: 4 },
-  eyebrow: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: GREY,
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    marginBottom: 4,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: TEXT,
-    letterSpacing: -0.5,
-    marginBottom: 4,
-  },
-  subtitle: { fontSize: 14, color: GREY, marginBottom: 16 },
-  divider: {
-    height: 1,
-    backgroundColor: LIGHT_GRAY,
-    marginBottom: 8,
-  },
-  field: { marginBottom: 16 },
-  fieldLabel: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: GREY,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 6,
-  },
-  input: {},
   headerTitle: {
     fontSize: 20,
     fontWeight: "700",
@@ -899,7 +849,7 @@ const styles = StyleSheet.create({
   stepConnector: { width: 32, height: 2, borderRadius: 1, marginTop: 11 },
   stepConnectorActive: { backgroundColor: "rgba(16, 185, 129, 0.2)" },
   stepConnectorIdle: { backgroundColor: LIGHT_GRAY },
-  main: { paddingHorizontal: 24, paddingTop: 24, gap: 24 },
+  main: { paddingHorizontal: 24, paddingTop: 24, gap: 24, flexGrow: 1 },
   errorBox: {
     backgroundColor: "#FEF2F2",
     borderWidth: 1,
