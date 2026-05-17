@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { itineraryApi } from '@/api/itinerary';
 import { getErrorMessage } from '@/utils/errorHandler';
 import { tripsApi } from '@/api/trips';
@@ -16,7 +18,11 @@ import { BudgetSummaryCards } from '@/components/BudgetSummaryCards';
 import { BudgetCategoryTable } from '@/components/BudgetCategoryTable';
 import { mapCostBreakdownToView } from '@/utils/budgetBreakdown';
 import type { BudgetBreakdownView } from '@/types/budget';
-import { theme } from '@/constants/theme';
+
+const BG = '#F8F8F6';
+const TEXT = '#111827';
+const GREEN = '#10B981';
+const GREY = '#6B7280';
 
 function parseBudget(trip: Record<string, unknown>): number {
   const v = trip.totalBudget ?? trip.total_budget;
@@ -27,6 +33,7 @@ function parseBudget(trip: Record<string, unknown>): number {
 
 export default function BudgetBreakdownScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { tripId } = useLocalSearchParams<{ tripId?: string }>();
   const [data, setData] = useState<BudgetBreakdownView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,8 +79,8 @@ export default function BudgetBreakdownScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+      <View style={[styles.screen, styles.centered]}>
+        <ActivityIndicator size="large" color={GREEN} />
         <Text style={styles.loadingText}>Loading budget...</Text>
       </View>
     );
@@ -81,13 +88,13 @@ export default function BudgetBreakdownScreen() {
 
   if (error && !data) {
     return (
-      <View style={[styles.container, styles.centered]}>
+      <View style={[styles.screen, styles.centered, { paddingTop: insets.top }]}>
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryBtn} onPress={loadData}>
+        <TouchableOpacity style={styles.retryBtn} onPress={loadData} activeOpacity={0.9}>
           <Text style={styles.retryBtnText}>Retry</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backLink}>← Go Back</Text>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backLinkBtn} activeOpacity={0.7}>
+          <Text style={styles.backLink}>Go back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -96,64 +103,80 @@ export default function BudgetBreakdownScreen() {
   if (!data) return null;
 
   return (
-    <ScrollView style={styles.container}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-        <Text style={styles.backText}>← Back</Text>
-      </TouchableOpacity>
-      <Text style={styles.title}>Budget breakdown</Text>
-      <Text style={styles.subtitle}>Cost allocation by category</Text>
-      <BudgetPieChart
-        categories={data.categories}
-        totalAllocated={data.totalAllocated}
-      />
-      <BudgetSummaryCards
-        totalBudget={data.totalBudget}
-        totalAllocated={data.totalAllocated}
-        currency={data.currency}
-      />
-      <BudgetCategoryTable
-        categories={data.categories}
-        currency={data.currency}
-        totalBudget={data.totalBudget}
-      />
-      <View style={styles.spacer} />
-    </ScrollView>
+    <View style={styles.screen}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <TouchableOpacity style={styles.headerBtn} onPress={() => router.back()} activeOpacity={0.85}>
+          <Feather name="chevron-left" size={20} color={TEXT} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Budget breakdown</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 32 + insets.bottom }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.subtitle}>Cost allocation by category</Text>
+        <BudgetPieChart categories={data.categories} totalAllocated={data.totalAllocated} />
+        <BudgetSummaryCards
+          totalBudget={data.totalBudget}
+          totalAllocated={data.totalAllocated}
+          currency={data.currency}
+        />
+        <BudgetCategoryTable
+          categories={data.categories}
+          currency={data.currency}
+          totalBudget={data.totalBudget}
+        />
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-    padding: 24,
-  },
-  centered: {
-    justifyContent: 'center',
+  screen: { flex: 1, backgroundColor: BG },
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: 24, paddingTop: 8 },
+  centered: { justifyContent: 'center', alignItems: 'center', padding: 24 },
+  header: {
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: 12,
   },
-  backButton: { marginTop: 60, marginBottom: 16 },
-  backText: { color: theme.colors.primary, fontSize: 16 },
-  title: {
-    fontSize: theme.fonts.title,
-    fontWeight: 'bold',
-    color: theme.colors.text,
-    marginBottom: 8,
+  headerBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerSpacer: { width: 40 },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 17,
+    fontWeight: '700',
+    color: TEXT,
   },
   subtitle: {
-    fontSize: theme.fonts.regular,
-    color: theme.colors.subtext,
-    marginBottom: 8,
+    fontSize: 14,
+    color: GREY,
+    marginBottom: 16,
+    textAlign: 'center',
   },
-  loadingText: { color: theme.colors.subtext, marginTop: 12 },
-  errorText: { color: theme.colors.error, textAlign: 'center', marginBottom: 16 },
+  loadingText: { color: GREY, marginTop: 12, fontSize: 14 },
+  errorText: { color: '#EF4444', textAlign: 'center', marginBottom: 16, fontSize: 14 },
   retryBtn: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: GREEN,
     paddingVertical: 12,
     paddingHorizontal: 24,
-    borderRadius: theme.radius.md,
+    borderRadius: 20,
     marginBottom: 12,
   },
-  retryBtnText: { color: theme.colors.background, fontWeight: 'bold', fontSize: 16 },
-  backLink: { color: theme.colors.subtext, fontSize: 14 },
-  spacer: { height: 40 },
+  retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  backLinkBtn: { paddingVertical: 8 },
+  backLink: { color: GREY, fontSize: 14, fontWeight: '600' },
 });
