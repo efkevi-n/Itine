@@ -1,12 +1,18 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, Animated,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import QRCode from 'react-native-qrcode-svg';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { trippassApi } from '@/api/trippass';
 import { userApi } from '@/api/user';
 import { tripsApi } from '@/api/trips';
@@ -15,16 +21,23 @@ import { useConnectivity } from '@/hooks/useConnectivity';
 import { useBiometricLock } from '@/hooks/useBiometricLock';
 import { OFFLINE_MESSAGES } from '@/constants/offline';
 import { BiometricGate } from '@/components/BiometricGate';
+import { showToast } from '@/utils/toastStore';
 
 const QR_REFRESH_INTERVAL = 30;
 const PASS_CACHE_PREFIX = 'trippass_';
 
-const SERVICES = [
-  { icon: 'navigation' as const, label: 'Flight' },
-  { icon: 'home' as const, label: 'Hotel' },
-  { icon: 'truck' as const, label: 'Transport' },
-  { icon: 'film' as const, label: 'Activities' },
-];
+const BG = '#F8F8F6';
+const TEXT = '#111827';
+const GREEN = '#10B981';
+const GREY = '#6B7280';
+
+const CARD_SHADOW = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 8 },
+  shadowOpacity: 0.06,
+  shadowRadius: 16,
+  elevation: 4,
+};
 
 interface CachedPass {
   jti: string;
@@ -41,8 +54,14 @@ function getCacheKey(tripId: string): string {
   return `${PASS_CACHE_PREFIX}${tripId}`;
 }
 
+function getTripTitle(destination: string): string {
+  const city = destination.split(',')[0]?.trim();
+  return city ? `${city} Explorer` : destination || 'Your Trip';
+}
+
 export default function QRPassScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { isOnline } = useConnectivity();
   const { tripId, jti: paramJti } = useLocalSearchParams<{ tripId?: string; jti?: string }>();
   const { lockState, unlock, isLocked, resetLockTimer } = useBiometricLock();
@@ -59,26 +78,20 @@ export default function QRPassScreen() {
   const [offlineMode, setOfflineMode] = useState(false);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const loadedByJtiRef = useRef(false);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 520,
-      useNativeDriver: true,
-    }).start();
-  }, []);
 
   const currentTripId = (typeof tripId === 'string' ? tripId : undefined) ?? resolvedTripId ?? undefined;
 
-  const savePassToStorage = useCallback(async (data: CachedPass) => {
-    if (!currentTripId) return;
-    try {
-      await SecureStore.setItemAsync(getCacheKey(currentTripId), JSON.stringify(data));
-    } catch {
-      // ignore
-    }
-  }, [currentTripId]);
+  const savePassToStorage = useCallback(
+    async (data: CachedPass) => {
+      if (!currentTripId) return;
+      try {
+        await SecureStore.setItemAsync(getCacheKey(currentTripId), JSON.stringify(data));
+      } catch {
+        // ignore
+      }
+    },
+    [currentTripId],
+  );
 
   const loadPassFromStorage = useCallback(async (): Promise<CachedPass | null> => {
     if (!currentTripId) return null;
@@ -111,7 +124,7 @@ export default function QRPassScreen() {
       const rawJti =
         (typeof body?.jti === 'string' ? body.jti : undefined) ??
         (body?.data && typeof (body.data as Record<string, unknown>)?.jti === 'string'
-          ? (body.data as Record<string, unknown>).jti as string
+          ? ((body.data as Record<string, unknown>).jti as string)
           : undefined);
       const passJti: string = typeof rawJti === 'string' ? rawJti : '';
       if (!passJti) {
@@ -135,7 +148,13 @@ export default function QRPassScreen() {
         setUserName(typeof profile.name === 'string' ? profile.name : '');
       }
 
-      const trip = tripRes.data as { destination?: string; startDate?: string; endDate?: string; start_date?: string; end_date?: string } | null;
+      const trip = tripRes.data as {
+        destination?: string;
+        startDate?: string;
+        endDate?: string;
+        start_date?: string;
+        end_date?: string;
+      } | null;
       if (trip) {
         setDestination(trip.destination ?? '');
         setStartDate(trip.startDate ?? trip.start_date ?? '');
@@ -196,7 +215,13 @@ export default function QRPassScreen() {
         ]);
         const profile = profileRes.data as { name?: string } | null;
         if (profile) setUserName(typeof profile.name === 'string' ? profile.name : '');
-        const trip = tripRes.data as { destination?: string; startDate?: string; endDate?: string; start_date?: string; end_date?: string } | null;
+        const trip = tripRes.data as {
+          destination?: string;
+          startDate?: string;
+          endDate?: string;
+          start_date?: string;
+          end_date?: string;
+        } | null;
         if (trip) {
           setDestination(trip.destination ?? '');
           setStartDate(trip.startDate ?? trip.start_date ?? '');
@@ -260,14 +285,39 @@ export default function QRPassScreen() {
   useFocusEffect(
     useCallback(() => {
       if (isLocked && jti) unlock();
-    }, [isLocked, jti, unlock])
+    }, [isLocked, jti, unlock]),
   );
 
-  const qrPayload = jti != null && otp != null && currentTripId
-    ? JSON.stringify({ jti, otp, tripId: currentTripId })
-    : '';
+  const handleSaveOffline = useCallback(async () => {
+    if (!jti || !currentTripId) return;
+    await savePassToStorage({
+      jti,
+      otp: otp ?? '',
+      tripId: currentTripId,
+      destination,
+      startDate,
+      endDate,
+      userName,
+      savedAt: Date.now(),
+    });
+    showToast('success', 'Pass saved for offline use.');
+  }, [jti, currentTripId, destination, startDate, endDate, userName, otp, savePassToStorage]);
+
+  const handleMenuPress = useCallback(() => {
+    Alert.alert('Digital Pass', undefined, [
+      { text: 'Refresh code', onPress: () => refreshOtp() },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, [refreshOtp]);
+
+  const qrPayload =
+    jti != null && otp != null && currentTripId
+      ? JSON.stringify({ jti, otp, tripId: currentTripId })
+      : '';
 
   const datesFormatted = startDate && endDate ? formatTripDateRange(startDate, endDate) : '';
+  const tripTitle = getTripTitle(destination);
+  const cityLabel = destination.split(',')[0]?.trim() || destination;
 
   if (!currentTripId && !paramJti) {
     return null;
@@ -275,10 +325,8 @@ export default function QRPassScreen() {
 
   if (loading && !jti) {
     return (
-      <View style={styles.centerContainer}>
-        <View style={styles.glowOrbTop} />
-        <View style={styles.glowOrbBottom} />
-        <ActivityIndicator size="large" color="#6366f1" />
+      <View style={[styles.screen, styles.centered]}>
+        <ActivityIndicator size="large" color={GREEN} />
         <Text style={styles.loadingText}>Loading your pass...</Text>
       </View>
     );
@@ -286,18 +334,16 @@ export default function QRPassScreen() {
 
   if (loadError && !offlineMode) {
     return (
-      <View style={styles.centerContainer}>
-        <View style={styles.glowOrbTop} />
-        <View style={styles.glowOrbBottom} />
-        <View style={styles.lockIconWrap}>
-          <Feather name="alert-circle" size={32} color="#6366f1" />
+      <View style={[styles.screen, styles.centered]}>
+        <View style={styles.errorIconWrap}>
+          <Feather name="alert-circle" size={32} color={GREEN} />
         </View>
-        <Text style={styles.authTitle}>Unable to Load Pass</Text>
-        <Text style={styles.authSubtitle}>{loadError}</Text>
-        <TouchableOpacity style={styles.authBtn} onPress={loadData}>
-          <Text style={styles.authBtnText}>Retry</Text>
+        <Text style={styles.errorTitle}>Unable to Load Pass</Text>
+        <Text style={styles.errorSubtitle}>{loadError}</Text>
+        <TouchableOpacity style={styles.primaryBtn} onPress={loadData}>
+          <Text style={styles.primaryBtnText}>Retry</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backLinkBtn}>
+        <TouchableOpacity onPress={() => router.back()}>
           <Text style={styles.backLink}>Go Back</Text>
         </TouchableOpacity>
       </View>
@@ -306,179 +352,392 @@ export default function QRPassScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.glowOrbTop} />
-      <View style={styles.glowOrbBottom} />
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <TouchableOpacity style={styles.headerBtn} onPress={() => router.back()} activeOpacity={0.85}>
+          <Feather name="arrow-left" size={16} color={TEXT} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Digital Pass</Text>
+        <TouchableOpacity style={styles.headerBtn} onPress={handleMenuPress} activeOpacity={0.85}>
+          <Feather name="more-vertical" size={16} color={TEXT} />
+        </TouchableOpacity>
+      </View>
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 32 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
         onScroll={resetLockTimer}
         scrollEventThrottle={16}
       >
-        <Animated.View style={{ opacity: fadeAnim }}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-            <Feather name="chevron-left" size={18} color="#6366f1" />
-            <Text style={styles.backText}>Back</Text>
-          </TouchableOpacity>
+        {(offlineMode || !isOnline) ? (
+          <View style={styles.offlineBanner}>
+            <Feather name="wifi-off" size={14} color="#D97706" />
+            <Text style={styles.offlineBannerText}>
+              {!isOnline ? OFFLINE_MESSAGES.offlineOtpWarning : OFFLINE_MESSAGES.offlineCachedPass}
+            </Text>
+          </View>
+        ) : null}
 
-          <Text style={styles.eyebrow}>QR PASS</Text>
-          <Text style={styles.title}>Your QR Pass</Text>
-          <Text style={styles.subtitle}>Show this at check-in points</Text>
-          <View style={styles.divider} />
+        <View style={[styles.passCard, CARD_SHADOW]}>
+          <View style={styles.passTop}>
+            <View style={styles.passTopGlow} />
+            <Text style={styles.passTitle}>{tripTitle}</Text>
+            <Text style={styles.passSubtitle}>
+              {datesFormatted}
+              {userName ? ` • ${userName}` : ''}
+            </Text>
 
-          {(offlineMode || !isOnline) ? (
-            <View style={styles.offlineBanner}>
-              <Text style={styles.offlineBannerText}>
-                {!isOnline ? OFFLINE_MESSAGES.offlineOtpWarning : OFFLINE_MESSAGES.offlineCachedPass}
-              </Text>
-            </View>
-          ) : null}
-
-          <BiometricGate isLocked={isLocked} lockState={lockState} onUnlock={unlock}>
-            <View onTouchEnd={resetLockTimer}>
-              <View style={styles.qrContainer}>
-                <Text style={styles.watermarkName}>{userName || 'Traveler'}</Text>
+            <BiometricGate isLocked={isLocked} lockState={lockState} onUnlock={unlock}>
+              <View style={styles.qrWrap} onTouchEnd={resetLockTimer}>
                 {qrPayload ? (
-                  <QRCode
-                    value={qrPayload}
-                    size={220}
-                    backgroundColor="#fff"
-                    color="#0d0d14"
-                  />
-                ) : null}
-                <View style={styles.countdownContainer}>
-                  <Text style={styles.countdownLabel}>Refreshes in</Text>
-                  <Text style={[styles.countdownTimer, countdown <= 10 && { color: '#f59e0b' }]}>
-                    {countdown}s
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryDestination}>{destination || '—'}</Text>
-                {datesFormatted ? (
-                  <View style={styles.datesPill}>
-                    <Feather name="calendar" size={12} color="#9ca3af" />
-                    <Text style={styles.summaryDates}>{datesFormatted}</Text>
+                  <View style={styles.qrFrame}>
+                    <QRCode value={qrPayload} size={192} backgroundColor="#fff" color="#111827" />
                   </View>
                 ) : null}
               </View>
+            </BiometricGate>
 
-              <Text style={styles.sectionLabel}>THIS PASS COVERS</Text>
-              {SERVICES.map((service, index) => (
-                <View key={index} style={styles.serviceRow}>
-                  <View style={styles.serviceIconWrap}>
-                    <Feather name={service.icon} size={18} color="#6366f1" />
-                  </View>
-                  <View style={styles.serviceInfo}>
-                    <Text style={styles.serviceLabel}>{service.label}</Text>
-                    <Text style={styles.serviceDetail}>Included</Text>
-                  </View>
+            <View style={styles.activePassBadge}>
+              <View style={styles.activeDot} />
+              <Text style={styles.activePassText}>Active Pass</Text>
+            </View>
+
+            {isOnline && !isLocked ? (
+              <Text style={styles.refreshHint}>
+                Refreshes in {countdown}s
+              </Text>
+            ) : null}
+          </View>
+
+          <View style={styles.ticketDivider}>
+            <View style={styles.ticketNotchLeft} />
+            <View style={styles.ticketDash} />
+            <View style={styles.ticketNotchRight} />
+          </View>
+
+          <View style={styles.passBottom}>
+            <View style={styles.detailCard}>
+              <View style={styles.detailLeft}>
+                <View style={[styles.detailIcon, styles.detailIconGreen]}>
+                  <Feather name="navigation" size={14} color={GREEN} />
                 </View>
-              ))}
-
-              <View style={styles.offlineBadge}>
-                <Feather name="wifi-off" size={14} color="#22c55e" />
-                <Text style={styles.offlineText}>
-                  {offlineMode ? 'Offline mode — QR stored securely on device' : 'Works Offline — pass cached on device'}
-                </Text>
+                <View>
+                  <Text style={styles.detailLabel}>Flight • {cityLabel}</Text>
+                  <Text style={styles.detailValue}>Show at check-in • Gate info in app</Text>
+                </View>
+              </View>
+              <View style={styles.onTimeBadge}>
+                <Text style={styles.onTimeText}>On Time</Text>
               </View>
             </View>
-          </BiometricGate>
 
-          <View style={{ height: 40 }} />
-        </Animated.View>
+            <View style={styles.detailCard}>
+              <View style={styles.detailLeft}>
+                <View style={[styles.detailIcon, styles.detailIconBlue]}>
+                  <Feather name="home" size={14} color="#3B82F6" />
+                </View>
+                <View>
+                  <Text style={styles.detailLabel}>Hotel • {cityLabel}</Text>
+                  <Text style={styles.detailValue}>Check-in details in itinerary</Text>
+                </View>
+              </View>
+            </View>
+
+            <Text style={styles.scanHint}>Scan this QR code at any partnered service.</Text>
+          </View>
+        </View>
+
+        <View style={styles.quickActions}>
+          <TouchableOpacity style={[styles.actionCard, CARD_SHADOW]} onPress={handleSaveOffline} activeOpacity={0.88}>
+            <View style={styles.actionIconGreen}>
+              <Feather name="download" size={18} color={GREEN} />
+            </View>
+            <Text style={styles.actionLabel}>Save Offline</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionCard, CARD_SHADOW]}
+            onPress={() => Alert.alert('Add to Wallet', 'Apple Wallet integration is coming soon.')}
+            activeOpacity={0.88}
+          >
+            <View style={styles.actionIconDark}>
+              <Feather name="smartphone" size={18} color="#fff" />
+            </View>
+            <Text style={styles.actionLabel}>Add to Wallet</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.hintsCard, CARD_SHADOW]}>
+          <Text style={styles.hintsTitle}>How to use your pass</Text>
+          <View style={styles.hintRow}>
+            <View style={styles.hintNumber}>
+              <Text style={styles.hintNumberText}>1</Text>
+            </View>
+            <Text style={styles.hintText}>
+              Present this QR code at airport security, hotel front desk, or transport gates.
+            </Text>
+          </View>
+          <View style={styles.hintRow}>
+            <View style={styles.hintNumber}>
+              <Text style={styles.hintNumberText}>2</Text>
+            </View>
+            <Text style={styles.hintText}>
+              Ensure your screen brightness is turned up for easy scanning.
+            </Text>
+          </View>
+        </View>
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#0d0d14' },
+  screen: { flex: 1, backgroundColor: BG },
+  centered: { justifyContent: 'center', alignItems: 'center', padding: 24 },
   scroll: { flex: 1 },
-  content: { paddingHorizontal: 24, paddingBottom: 60 },
-  glowOrbTop: {
-    position: 'absolute', top: -100, right: -80,
-    width: 320, height: 320, borderRadius: 999,
-    backgroundColor: 'rgba(99,102,241,0.08)',
+  scrollContent: { paddingHorizontal: 24, gap: 24 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingBottom: 8,
+    backgroundColor: BG,
+    zIndex: 10,
   },
-  glowOrbBottom: {
-    position: 'absolute', bottom: -120, left: -80,
-    width: 280, height: 280, borderRadius: 999,
-    backgroundColor: 'rgba(99,102,241,0.06)',
+  headerBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  centerContainer: {
-    flex: 1, backgroundColor: '#0d0d14',
-    justifyContent: 'center', alignItems: 'center', padding: 24,
-  },
-  lockIconWrap: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: 'rgba(99,102,241,0.1)',
-    borderWidth: 1, borderColor: 'rgba(99,102,241,0.2)',
-    alignItems: 'center', justifyContent: 'center', marginBottom: 24,
-  },
-  authTitle: { fontSize: 22, fontWeight: '700', color: '#ffffff', marginBottom: 8, textAlign: 'center' },
-  authSubtitle: { fontSize: 14, color: '#9ca3af', textAlign: 'center', marginBottom: 24 },
-  authBtn: {
-    width: '100%', height: 50, backgroundColor: '#6366f1',
-    borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 12,
-  },
-  authBtnText: { color: '#ffffff', fontWeight: '700', fontSize: 16 },
-  backLinkBtn: { marginTop: 4 },
-  backLink: { color: '#4b5563', fontSize: 14 },
-  loadingText: { color: '#9ca3af', marginTop: 16, fontSize: 14 },
-  backBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    marginTop: 48, marginBottom: 24, alignSelf: 'flex-start',
-  },
-  backText: { color: '#6366f1', fontSize: 15, fontWeight: '600' },
-  eyebrow: { fontSize: 10, color: '#4b5563', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 },
-  title: { fontSize: 26, fontWeight: '700', color: '#ffffff', marginBottom: 6 },
-  subtitle: { fontSize: 13, color: '#9ca3af', marginBottom: 16 },
-  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginBottom: 24 },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: TEXT },
   offlineBanner: {
-    backgroundColor: 'rgba(245,158,11,0.15)', borderWidth: 1,
-    borderColor: 'rgba(245,158,11,0.3)', borderRadius: 10, padding: 10, marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 4,
   },
-  offlineBannerText: { color: '#f59e0b', fontSize: 13, fontWeight: '600', textAlign: 'center' },
-  qrContainer: {
-    backgroundColor: '#ffffff', borderRadius: 20, padding: 28,
-    alignItems: 'center', marginBottom: 20,
-    shadowColor: '#6366f1', shadowOpacity: 0.3, shadowRadius: 20, elevation: 10,
+  offlineBannerText: { flex: 1, color: '#D97706', fontSize: 12, fontWeight: '600' },
+  passCard: {
+    backgroundColor: '#fff',
+    borderRadius: 32,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#F9FAFB',
   },
-  watermarkName: { color: '#0d0d14', fontWeight: '700', fontSize: 16, marginBottom: 16 },
-  countdownContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16 },
-  countdownLabel: { color: '#9ca3af', fontSize: 13 },
-  countdownTimer: { color: '#22c55e', fontWeight: '700', fontSize: 18 },
-  summaryCard: {
-    backgroundColor: '#13131f', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
-    borderRadius: 14, padding: 16, marginBottom: 24,
+  passTop: {
+    paddingTop: 32,
+    paddingHorizontal: 32,
+    paddingBottom: 20,
+    alignItems: 'center',
+    position: 'relative',
+    overflow: 'hidden',
   },
-  summaryDestination: { fontSize: 16, fontWeight: '700', color: '#ffffff', marginBottom: 10 },
-  datesPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
+  passTopGlow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+    backgroundColor: 'rgba(16, 185, 129, 0.05)',
   },
-  summaryDates: { fontSize: 13, color: '#9ca3af' },
-  sectionLabel: { fontSize: 10, color: '#4b5563', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 12 },
-  serviceRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#13131f', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
-    borderRadius: 12, padding: 14, marginBottom: 10,
+  passTitle: { fontSize: 22, fontWeight: '700', color: TEXT, marginBottom: 4, zIndex: 1 },
+  passSubtitle: { fontSize: 14, color: GREY, marginBottom: 24, zIndex: 1, textAlign: 'center' },
+  qrWrap: { zIndex: 1, marginBottom: 16 },
+  qrFrame: {
+    padding: 16,
+    borderRadius: 24,
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: 'rgba(16, 185, 129, 0.1)',
+    shadowColor: GREEN,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 4,
   },
-  serviceIconWrap: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(99,102,241,0.1)', alignItems: 'center', justifyContent: 'center',
+  activePassBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    zIndex: 1,
   },
-  serviceInfo: { flex: 1 },
-  serviceLabel: { fontSize: 14, fontWeight: '700', color: '#ffffff' },
-  serviceDetail: { fontSize: 12, color: '#9ca3af' },
-  offlineBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: 'rgba(34,197,94,0.08)', borderColor: 'rgba(34,197,94,0.2)',
-    borderWidth: 1, borderRadius: 12, padding: 12, marginTop: 8,
+  activeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: GREEN },
+  activePassText: { fontSize: 12, fontWeight: '700', color: GREEN },
+  refreshHint: { fontSize: 11, color: GREY, marginTop: 8, zIndex: 1 },
+  ticketDivider: {
+    height: 32,
+    backgroundColor: '#fff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
   },
-  offlineText: { color: '#22c55e', fontSize: 13, flex: 1 },
+  ticketNotchLeft: {
+    position: 'absolute',
+    left: -16,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: BG,
+    borderRightWidth: 1,
+    borderRightColor: '#F3F4F6',
+  },
+  ticketNotchRight: {
+    position: 'absolute',
+    right: -16,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: BG,
+    borderLeftWidth: 1,
+    borderLeftColor: '#F3F4F6',
+  },
+  ticketDash: {
+    flex: 1,
+    height: 1,
+    marginHorizontal: 32,
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  passBottom: {
+    backgroundColor: '#FAFAFA',
+    padding: 24,
+    gap: 12,
+  },
+  detailCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#F9FAFB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  detailLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  detailIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailIconGreen: { backgroundColor: 'rgba(16, 185, 129, 0.1)' },
+  detailIconBlue: { backgroundColor: 'rgba(59, 130, 246, 0.1)' },
+  detailLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: GREY,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 2,
+  },
+  detailValue: { fontSize: 14, fontWeight: '700', color: TEXT },
+  onTimeBadge: {
+    backgroundColor: '#F1F8E9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  onTimeText: { fontSize: 10, fontWeight: '700', color: GREEN },
+  scanHint: {
+    fontSize: 10,
+    color: GREY,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  quickActions: { flexDirection: 'row', gap: 12 },
+  actionCard: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 16,
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#F9FAFB',
+  },
+  actionIconGreen: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionIconDark: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionLabel: { fontSize: 12, fontWeight: '700', color: TEXT },
+  hintsCard: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#F9FAFB',
+  },
+  hintsTitle: { fontSize: 14, fontWeight: '700', color: TEXT, marginBottom: 16 },
+  hintRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 16 },
+  hintNumber: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  hintNumberText: { fontSize: 10, fontWeight: '700', color: TEXT },
+  hintText: { flex: 1, fontSize: 12, color: GREY, lineHeight: 18 },
+  loadingText: { color: GREY, marginTop: 12, fontSize: 14 },
+  errorIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  errorTitle: { fontSize: 22, fontWeight: '700', color: TEXT, marginBottom: 8, textAlign: 'center' },
+  errorSubtitle: { fontSize: 14, color: GREY, textAlign: 'center', marginBottom: 24 },
+  primaryBtn: {
+    width: '100%',
+    backgroundColor: GREEN,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  backLink: { color: GREY, fontSize: 14, marginTop: 8 },
 });
