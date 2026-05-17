@@ -13,7 +13,7 @@ import {
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Feather } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useScreenInsets } from '@/hooks/useScreenInsets';
 import { extractUploadedPhotoUrl, userApi } from '@/api/user';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { authApi } from '@/api/auth';
@@ -240,7 +240,7 @@ function pickBudgetTripId(payload: unknown): string | null {
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { top, tabScrollBottom } = useScreenInsets();
   useRequireAuth();
 
   const [profile, setProfile] = useState<ProfileView | null>(null);
@@ -398,11 +398,8 @@ export default function ProfileScreen() {
   }, [budgetTripId, router]);
 
   const handlePrivacySecurity = useCallback(() => {
-    Alert.alert(
-      'Privacy & Security',
-      `Appearance: ${profileMeta.themePreference}\nStatus: ${profileMeta.status}\nMember since: ${profileMeta.memberSince}`,
-    );
-  }, [profileMeta.memberSince, profileMeta.status, profileMeta.themePreference]);
+    router.push('/privacy-security');
+  }, [router]);
 
   const currentProfile = useMemo<ProfileView>(
     () => profile ?? { name: '', email: '', phone: '', photoUrl: null },
@@ -411,7 +408,7 @@ export default function ProfileScreen() {
   const displayName = useMemo(() => getDisplayName(currentProfile), [currentProfile]);
   if (loading && !profile) {
     return (
-      <View style={[styles.screen, styles.centered]}>
+      <View style={[styles.screen, styles.centered, { paddingTop: top }]}>
         <ActivityIndicator size="large" color={GREEN} />
         <Text style={styles.loadingText}>Loading profile...</Text>
       </View>
@@ -420,7 +417,7 @@ export default function ProfileScreen() {
 
   if (error && !profile) {
     return (
-      <View style={[styles.screen, styles.centered]}>
+      <View style={[styles.screen, styles.centered, { paddingTop: top }]}>
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={loadProfile}>
           <Text style={styles.retryBtnText}>Retry</Text>
@@ -433,10 +430,10 @@ export default function ProfileScreen() {
     <View style={styles.screen}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 + insets.bottom }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: tabScrollBottom }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <View style={[styles.header, { paddingTop: top }]}>
           <Text style={styles.pageTitle}>Profile</Text>
 
           <View style={styles.profileHero}>
