@@ -7,7 +7,7 @@ export interface VerifyOtpDto {
   [key: string]: unknown;
 }
 
-/** OTP response from GET /otp/:jti */
+/** OTP response from GET /trippass/:jti/otp */
 export interface OtpResponse {
   otp?: string;
   [key: string]: unknown;
@@ -15,7 +15,7 @@ export interface OtpResponse {
 
 export const otpApi = {
   getOtp: (jti: string) =>
-    api.get<OtpResponse>(`/otp/${jti}`),
+    api.get<OtpResponse>(`/trippass/${jti}/otp`),
 
   verify: (data: VerifyOtpDto) =>
     api.post('/otp/verify', data),

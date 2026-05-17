@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 import { tripsApi } from '@/api/trips';
 import { itineraryApi } from '@/api/itinerary';
 import { formatTripDateRange } from '@/utils/dateFormat';
@@ -430,6 +430,7 @@ export default function ItineraryReviewScreen() {
   }, [isGenerating, tripId, loadData]);
 
   const handleConfirm = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setConfirmError(null);
     if (!tripId) {
       router.replace('/(tabs)');
@@ -527,9 +528,12 @@ export default function ItineraryReviewScreen() {
       >
         <OfflineBanner visible={!isOnline} />
 
-        <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.8}>
-            <Feather name="chevron-left" size={18} color={GREY} />
+          <TouchableOpacity onPress={async () => {
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.back();
+          }} style={styles.backButton} activeOpacity={0.7}>
+            <Feather name="chevron-left" size={22} color="#6366f1" />
+            <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
           <Text style={styles.topTitle}>{isBooked ? 'Your Trip' : 'Trip Summary'}</Text>
           {isPending ? (

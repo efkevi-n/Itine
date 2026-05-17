@@ -12,7 +12,7 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import QRCode from 'react-native-qrcode-svg';
 import { Feather } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 import { trippassApi } from '@/api/trippass';
 import { userApi } from '@/api/user';
 import { tripsApi } from '@/api/trips';
@@ -338,12 +338,18 @@ export default function QRPassScreen() {
         <View style={styles.errorIconWrap}>
           <Feather name="alert-circle" size={32} color={GREEN} />
         </View>
-        <Text style={styles.errorTitle}>Unable to Load Pass</Text>
-        <Text style={styles.errorSubtitle}>{loadError}</Text>
-        <TouchableOpacity style={styles.primaryBtn} onPress={loadData}>
-          <Text style={styles.primaryBtnText}>Retry</Text>
+        <Text style={styles.authTitle}>Unable to Load Pass</Text>
+        <Text style={styles.authSubtitle}>{loadError}</Text>
+        <TouchableOpacity style={styles.authBtn} onPress={async () => {
+          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          loadData();
+        }}>
+          <Text style={styles.authBtnText}>Retry</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={async () => {
+          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          router.back();
+        }} style={styles.backLinkBtn}>
           <Text style={styles.backLink}>Go Back</Text>
         </TouchableOpacity>
       </View>
@@ -369,33 +375,19 @@ export default function QRPassScreen() {
         onScroll={resetLockTimer}
         scrollEventThrottle={16}
       >
-        {(offlineMode || !isOnline) ? (
-          <View style={styles.offlineBanner}>
-            <Feather name="wifi-off" size={14} color="#D97706" />
-            <Text style={styles.offlineBannerText}>
-              {!isOnline ? OFFLINE_MESSAGES.offlineOtpWarning : OFFLINE_MESSAGES.offlineCachedPass}
-            </Text>
-          </View>
-        ) : null}
+        <Animated.View style={{ opacity: fadeAnim }}>
+          <TouchableOpacity style={styles.backBtn} onPress={async () => {
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.back();
+          }}>
+            <Feather name="chevron-left" size={18} color="#6366f1" />
+            <Text style={styles.backText}>Back</Text>
+          </TouchableOpacity>
 
-        <View style={[styles.passCard, CARD_SHADOW]}>
-          <View style={styles.passTop}>
-            <View style={styles.passTopGlow} />
-            <Text style={styles.passTitle}>{tripTitle}</Text>
-            <Text style={styles.passSubtitle}>
-              {datesFormatted}
-              {userName ? ` • ${userName}` : ''}
-            </Text>
-
-            <BiometricGate isLocked={isLocked} lockState={lockState} onUnlock={unlock}>
-              <View style={styles.qrWrap} onTouchEnd={resetLockTimer}>
-                {qrPayload ? (
-                  <View style={styles.qrFrame}>
-                    <QRCode value={qrPayload} size={192} backgroundColor="#fff" color="#111827" />
-                  </View>
-                ) : null}
-              </View>
-            </BiometricGate>
+          <Text style={styles.eyebrow}>QR PASS</Text>
+          <Text style={styles.title}>Your QR Pass</Text>
+          <Text style={styles.subtitle}>Show this at check-in points</Text>
+          <View style={styles.divider} />
 
             <View style={styles.activePassBadge}>
               <View style={styles.activeDot} />

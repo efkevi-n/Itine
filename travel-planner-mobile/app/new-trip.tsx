@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import * as Haptics from 'expo-haptics';
 import { api } from '@/api/client';
 import { DestinationSearch } from '@/components/DestinationSearch';
 import { FullScreenLoader } from '@/components/FullScreenLoader';
@@ -81,10 +82,11 @@ function formatDateYYYYMMDD(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
-function formatDisplayDate(str: string): string {
-  const d = parseDate(str);
+function formatDateDisplay(isoString: string): string {
+  const d = parseDate(isoString);
   if (!d) return '';
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${monthNames[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
 function validate(
@@ -226,6 +228,7 @@ export default function NewTripScreen() {
   };
 
   const handleGenerate = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setError('');
     if (!isOnline) {
       setError(OFFLINE_MESSAGES.cannotCreateTrip);
@@ -369,20 +372,19 @@ export default function NewTripScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-              <View style={styles.headerRow}>
-                <TouchableOpacity
-                  style={styles.backBtn}
-                  onPress={() => router.back()}
-                  disabled={disabled}
-                  activeOpacity={0.8}
-                >
-                  <Feather name="arrow-left" size={18} color={TEXT} />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Plan New Trip</Text>
-              </View>
-              <StepRail currentStep={currentStep} />
-            </View>
+            <Animated.View style={{ opacity: fadeAnim }}>
+              <TouchableOpacity style={styles.backBtn} onPress={async () => {
+                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.back();
+              }} disabled={disabled}>
+                <Feather name="chevron-left" size={18} color="#6366f1" />
+                <Text style={styles.backText}>Back</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.eyebrow}>NEW TRIP</Text>
+              <Text style={styles.title}>Plan Your Journey</Text>
+              <Text style={styles.subtitle}>Fill in the details below</Text>
+              <View style={styles.divider} />
 
             <View style={styles.main}>
               {error ? (
@@ -417,38 +419,49 @@ export default function NewTripScreen() {
                 />
               </SectionCard>
 
-              <SectionCard stepNum="03" title="Dates" icon="calendar">
-                <View style={styles.datesRow}>
-                  <View style={styles.dateCol}>
-                    <Text style={styles.dateLabel}>Departure</Text>
-                    <TouchableOpacity
-                      style={styles.dateInput}
-                      onPress={() => openDatePicker('startDate')}
-                      disabled={disabled}
-                      activeOpacity={0.85}
-                    >
-                      <Feather name="calendar" size={14} color={`${GREY}80`} style={styles.dateIcon} />
-                      <Text style={[styles.dateText, !startDate && styles.datePlaceholder]}>
-                        {startDate ? formatDisplayDate(startDate) : 'Select'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                  <View style={styles.dateCol}>
-                    <Text style={styles.dateLabel}>Return</Text>
-                    <TouchableOpacity
-                      style={styles.dateInput}
-                      onPress={() => openDatePicker('endDate')}
-                      disabled={disabled}
-                      activeOpacity={0.85}
-                    >
-                      <Feather name="calendar" size={14} color={`${GREY}80`} style={styles.dateIcon} />
-                      <Text style={[styles.dateText, !endDate && styles.datePlaceholder]}>
-                        {endDate ? formatDisplayDate(endDate) : 'Select'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </SectionCard>
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>START DATE</Text>
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  disabled={disabled}
+                  onPress={async () => {
+                    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    openDatePicker('startDate');
+                  }}
+                  style={[styles.input, styles.dateInput, inputBorder('startDate')]}
+                  onFocus={() => setFocusedField('startDate')}
+                  onBlur={() => setFocusedField(null)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Pick start date"
+                >
+                  <Text style={[styles.dateText, !startDate && styles.datePlaceholder]}>
+                    {startDate ? formatDateDisplay(startDate) : 'Pick a date'}
+                  </Text>
+                  <Feather name="calendar" size={18} color="#9ca3af" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>END DATE</Text>
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  disabled={disabled}
+                  onPress={async () => {
+                    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    openDatePicker('endDate');
+                  }}
+                  style={[styles.input, styles.dateInput, inputBorder('endDate')]}
+                  onFocus={() => setFocusedField('endDate')}
+                  onBlur={() => setFocusedField(null)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Pick end date"
+                >
+                  <Text style={[styles.dateText, !endDate && styles.datePlaceholder]}>
+                    {endDate ? formatDateDisplay(endDate) : 'Pick a date'}
+                  </Text>
+                  <Feather name="calendar" size={18} color="#9ca3af" />
+                </TouchableOpacity>
+              </View>
 
               <SectionCard stepNum="04" title="Budget" icon="credit-card">
                 <Text style={styles.budgetHint}>
