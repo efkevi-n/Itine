@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useScreenInsets } from '@/hooks/useScreenInsets';
 import { api } from '@/api/client';
 import { tripsApi } from '@/api/trips';
 import { userApi } from '@/api/user';
@@ -289,7 +289,7 @@ function buildDocuments(bookings: BookingDetailView[]): DocTile[] {
 
 export default function TripDetailScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { top, stackScrollBottomCompact: scrollBottom } = useScreenInsets();
   const { isOnline } = useConnectivity();
   const { id, tripId } = useLocalSearchParams<{ id?: string; tripId?: string }>();
   const resolvedId = tripId ?? id;
@@ -488,7 +488,7 @@ export default function TripDetailScreen() {
 
   if (!resolvedId) {
     return (
-      <View style={[styles.screen, styles.centered]}>
+      <View style={[styles.screen, styles.centered, { paddingTop: top }]}>
         <Text style={styles.notFoundText}>Trip not found.</Text>
       </View>
     );
@@ -496,7 +496,7 @@ export default function TripDetailScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.screen, styles.centered]}>
+      <View style={[styles.screen, styles.centered, { paddingTop: top }]}>
         <ActivityIndicator size="large" color={GREEN} />
         <Text style={styles.loadingText}>Loading trip...</Text>
       </View>
@@ -505,7 +505,7 @@ export default function TripDetailScreen() {
 
   if (error || !trip) {
     return (
-      <View style={[styles.screen, styles.centered]}>
+      <View style={[styles.screen, styles.centered, { paddingTop: top }]}>
         <Text style={styles.errorText}>{error ?? 'Trip not found.'}</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={loadData}>
           <Text style={styles.retryBtnText}>Retry</Text>
@@ -574,7 +574,7 @@ export default function TripDetailScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: top }]}>
         <TouchableOpacity style={styles.headerBtn} onPress={() => router.back()} activeOpacity={0.85}>
           <Feather name="arrow-left" size={16} color={TEXT} />
         </TouchableOpacity>
@@ -595,7 +595,7 @@ export default function TripDetailScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 + insets.bottom }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollBottom }]}
         showsVerticalScrollIndicator={false}
       >
         <OfflineBanner visible={!isOnline} />

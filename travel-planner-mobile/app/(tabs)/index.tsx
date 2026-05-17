@@ -11,7 +11,7 @@ import {
   TextInput,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useScreenInsets } from "@/hooks/useScreenInsets";
 import { Feather } from "@expo/vector-icons";
 import { userApi } from "@/api/user";
 import { tripsApi } from "@/api/trips";
@@ -148,7 +148,7 @@ function SkeletonCard() {
 
 export default function HomeScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { top, tabScrollBottom } = useScreenInsets();
   const { isOnline } = useConnectivity();
   const toastMessage = useToastStore((state) => state.message);
   const toastType = useToastStore((state) => state.type);
@@ -421,7 +421,7 @@ export default function HomeScreen() {
 
       <ScrollView
         style={s.scroll}
-        contentContainerStyle={[s.scrollContent, { paddingBottom: 100 + insets.bottom }]}
+        contentContainerStyle={[s.scrollContent, { paddingBottom: tabScrollBottom }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -434,7 +434,7 @@ export default function HomeScreen() {
           />
         }
       >
-        <View style={[s.header, { paddingTop: insets.top + 12 }]}>
+        <View style={[s.header, { paddingTop: top }]}>
           <OfflineBanner visible={!isOnline} />
 
           <View style={s.headerTop}>

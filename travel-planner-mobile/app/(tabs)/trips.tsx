@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useScreenInsets } from '@/hooks/useScreenInsets';
 import { tripsApi } from '@/api/trips';
 import { userApi } from '@/api/user';
 import type { TripCardData } from '@/components/TripCard';
@@ -132,7 +132,7 @@ function filterTrips(trips: TripCardData[], tab: FilterTab, search: string): Tri
 
 export default function MyTripsScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { top, tabScrollBottom, tabBarHeight } = useScreenInsets();
   useRequireAuth();
   const [trips, setTrips] = useState<TripCardData[]>([]);
   const [userPhotoUrl, setUserPhotoUrl] = useState('');
@@ -274,7 +274,7 @@ export default function MyTripsScreen() {
 
   if (loading && trips.length === 0) {
     return (
-      <View style={[styles.screen, styles.centered]}>
+      <View style={[styles.screen, styles.centered, { paddingTop: top }]}>
         <ActivityIndicator size="large" color={GREEN} />
         <Text style={styles.loadingText}>Loading trips...</Text>
       </View>
@@ -283,7 +283,7 @@ export default function MyTripsScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: top }]}>
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.title}>My Trips</Text>
@@ -301,7 +301,7 @@ export default function MyTripsScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 + insets.bottom }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: tabScrollBottom }]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={GREEN} />
         }
@@ -370,7 +370,7 @@ export default function MyTripsScreen() {
       </ScrollView>
 
       <TouchableOpacity
-        style={[styles.fab, { bottom: 88 + insets.bottom }]}
+        style={[styles.fab, { bottom: tabBarHeight + 16 }]}
         onPress={() => router.push('/new-trip')}
         activeOpacity={0.9}
       >
