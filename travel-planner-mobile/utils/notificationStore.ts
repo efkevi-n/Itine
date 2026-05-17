@@ -27,6 +27,12 @@ export async function markAllAsRead(): Promise<void> {
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 }
 
+export async function markNotificationAsRead(id: string): Promise<void> {
+  const list = await getNotifications();
+  const updated = list.map((n) => (n.id === id ? { ...n, isRead: true } : n));
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+}
+
 export async function deleteNotification(id: string): Promise<void> {
   const list = await getNotifications();
   const filtered = list.filter((n) => n.id !== id);
