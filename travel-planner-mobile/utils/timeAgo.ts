@@ -17,3 +17,24 @@ export function timeAgo(isoDate: string): string {
   if (diffDay < 7) return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`;
   return date.toLocaleDateString();
 }
+
+/** Compact timestamp for notification cards (e.g. "10m ago", "Mon"). */
+export function formatNotificationTime(isoDate: string, sectionLabel?: string): string {
+  const date = new Date(isoDate);
+  if (isNaN(date.getTime())) return '';
+
+  if (sectionLabel === 'Yesterday') return 'Yesterday';
+  if (sectionLabel === 'This Week') {
+    return date.toLocaleDateString('en-US', { weekday: 'short' });
+  }
+
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHour = Math.floor(diffMin / 60);
+
+  if (diffMin < 1) return 'Just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHour < 24) return `${diffHour}h ago`;
+  return 'Yesterday';
+}

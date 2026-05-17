@@ -5,11 +5,11 @@ import { formatTripDateRange } from '@/utils/dateFormat';
 export type TripStatus = 'PENDING' | 'CONFIRMED' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
 
 const STATUS_COLORS: Record<TripStatus, string> = {
-  PENDING: '#94a3b8',      // grey
-  CONFIRMED: '#38bdf8',    // blue
-  ACTIVE: '#22c55e',       // green
-  COMPLETED: '#64748b',    // dark grey
-  CANCELLED: '#ef4444',    // red
+  PENDING: '#94a3b8',
+  CONFIRMED: '#38bdf8',
+  ACTIVE: '#22c55e',
+  COMPLETED: '#64748b',
+  CANCELLED: '#ef4444',
 };
 
 export interface TripCardData {
@@ -40,21 +40,36 @@ export function TripCard({ trip, onPress }: TripCardProps) {
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.destination} numberOfLines={1}>{trip.destination}</Text>
-        <View style={[styles.badge, { backgroundColor: statusColor + '33' }]}>
-          <Text style={[styles.badgeText, { color: statusColor }]}>{displayStatus}</Text>
+      <View style={styles.body}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.destination} numberOfLines={1}>
+            {trip.destination}
+          </Text>
+          <View style={[styles.badge, { backgroundColor: statusColor + '33' }]}>
+            <Text style={[styles.badgeText, { color: statusColor }]}>{displayStatus}</Text>
+          </View>
         </View>
+        <Text style={styles.dates}>📅 {dateRange}</Text>
+        <Text style={styles.budget}>💰 {budgetStr}</Text>
       </View>
-      <Text style={styles.dates}>📅 {dateRange}</Text>
-      <Text style={styles.budget}>💰 {budgetStr}</Text>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: '#1e293b', borderRadius: 12, padding: 16, marginBottom: 16 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  card: {
+    backgroundColor: '#1e293b',
+    borderRadius: 12,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  body: { padding: 16 },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   destination: { fontSize: 16, fontWeight: 'bold', color: '#fff', flex: 1 },
   badge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   badgeText: { fontSize: 12, fontWeight: 'bold' },

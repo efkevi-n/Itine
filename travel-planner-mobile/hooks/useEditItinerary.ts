@@ -10,6 +10,7 @@ import {
   getTripBudget,
   regenerateItinerary,
 } from '@/utils/editItinerary';
+import { canEditTrip } from '@/utils/tripStatus';
 import type { EditableService, SwapOption } from '@/types/editItinerary';
 import type { ItineraryDayRaw } from '@/api/itinerary';
 
@@ -23,6 +24,7 @@ export function useEditItinerary(tripId: string | undefined) {
   const [regenerating, setRegenerating] = useState(false);
   const [alternatives, setAlternatives] = useState<Record<string, SwapOption[]>>({});
   const [loadingAltFor, setLoadingAltFor] = useState<string | null>(null);
+  const [locked, setLocked] = useState(false);
 
   const services = useMemo(() => itineraryToEditableServices(currentDays), [currentDays]);
   const totalCost = useMemo(() => calculateTotalCost(services), [services]);
@@ -39,11 +41,23 @@ export function useEditItinerary(tripId: string | undefined) {
         itineraryApi.getItinerary(tripId),
         tripsApi.getById(tripId),
       ]);
+      const tripData = (tripRes.data ?? {}) as Record<string, unknown>;
+      const tripStatus = String(tripData.status ?? 'PENDING').toUpperCase();
+
+      if (!canEditTrip(tripStatus)) {
+        setLocked(true);
+        setError('This trip has been booked and can no longer be edited.');
+        setOriginalDays([]);
+        setCurrentDays([]);
+        setTrip(tripData);
+        return;
+      }
+
+      setLocked(false);
       const itData = (itRes.data as { days?: ItineraryDayRaw[] })?.days ?? [];
-      const tripData = tripRes.data as Record<string, unknown>;
       setOriginalDays(JSON.parse(JSON.stringify(itData)));
       setCurrentDays(JSON.parse(JSON.stringify(itData)));
-      setTrip(tripData ?? null);
+      setTrip(tripData);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } }; message?: string };
       setError(err?.response?.data?.message ?? err?.message ?? 'Failed to load.');
@@ -80,7 +94,7 @@ export function useEditItinerary(tripId: string | undefined) {
         setLoadingAltFor(null);
       }
     },
-    [trip]
+    [trip],
   );
 
   const handleSelectAlternative = useCallback(
@@ -107,12 +121,12 @@ export function useEditItinerary(tripId: string | undefined) {
       }
       setCurrentDays(next);
     },
-    [currentDays]
+    [currentDays],
   );
 
   const handleSave = useCallback(
     async (onSuccess: () => void) => {
-      if (!tripId || saving) return;
+      if (!tripId || saving || locked) return;
       setSaving(true);
       setError(null);
       try {
@@ -125,7 +139,7 @@ export function useEditItinerary(tripId: string | undefined) {
         setSaving(false);
       }
     },
-    [tripId, currentDays, saving]
+    [tripId, currentDays, saving, locked],
   );
 
   const handleReset = useCallback(() => {
@@ -133,14 +147,14 @@ export function useEditItinerary(tripId: string | undefined) {
   }, [originalDays]);
 
   const handleRegenerate = useCallback(async () => {
-    if (!tripId || regenerating) return;
+    if (!tripId || regenerating || locked) return;
     setRegenerating(true);
     setError(null);
     const result = await regenerateItinerary(tripId, itineraryApi);
     if (result.success) await loadData();
     else if (result.error) setError(result.error);
     setRegenerating(false);
-  }, [tripId, regenerating, loadData]);
+  }, [tripId, regenerating, locked, loadData]);
 
   return {
     services,
@@ -148,6 +162,7 @@ export function useEditItinerary(tripId: string | undefined) {
     totalBudget,
     currency,
     overBudget,
+    locked,
     loading,
     error,
     saving,

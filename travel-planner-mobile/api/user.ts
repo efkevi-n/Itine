@@ -1,4 +1,4 @@
-import { api } from './client';
+import { api, resolveMediaUrl } from './client';
 
 /** Request body for PATCH /profile and PATCH /users/profile */
 export interface UpdateProfileDto {
@@ -13,7 +13,35 @@ export interface UserProfile {
   email?: string;
   name?: string;
   photoUrl?: string;
+  avatarUrl?: string;
+  isAdmin?: boolean;
   [key: string]: unknown;
+}
+
+export interface UploadPhotoResponse {
+  avatarUrl?: string;
+  photoUrl?: string;
+  url?: string;
+  user?: UserProfile;
+}
+
+type FormDataFile = {
+  uri: string;
+  type: string;
+  name: string;
+};
+
+export function extractUploadedPhotoUrl(data: UploadPhotoResponse | undefined): string | null {
+  if (!data) return null;
+  const user = data.user;
+  const raw =
+    data.avatarUrl ??
+    data.photoUrl ??
+    data.url ??
+    user?.avatarUrl ??
+    user?.photoUrl;
+  if (typeof raw !== 'string' || !raw.trim()) return null;
+  return resolveMediaUrl(raw);
 }
 
 export const userApi = {
@@ -23,8 +51,19 @@ export const userApi = {
   updateProfile: (data: UpdateProfileDto) =>
     api.patch<UserProfile>('/users/profile', data),
 
-  uploadPhoto: (formData: FormData) =>
-    api.post<{ url?: string }>('/users/profile/photo', formData),
+  uploadPhoto: (uri: string) => {
+    const formData = new FormData();
+    formData.append('photo', {
+      uri,
+      type: 'image/jpeg',
+      name: 'avatar.jpg',
+    } as FormDataFile as unknown as Blob);
+
+    return api.post<UploadPhotoResponse>('/users/profile/photo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      transformRequest: (payload) => payload,
+    });
+  },
 
   deleteAccount: () =>
     api.delete('/users/account'),

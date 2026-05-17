@@ -40,7 +40,7 @@ function normalizeType(dataType: unknown): NotificationType {
 }
 
 export const unstable_settings = {
-  initialRouteName: 'onboarding',
+  initialRouteName: 'index',
 };
 
 export default function RootLayout() {
@@ -153,6 +153,7 @@ export default function RootLayout() {
           </View>
         ) : null}
         <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
           <Stack.Screen name="onboarding" />
           <Stack.Screen name="login" />
           <Stack.Screen name="register" />
@@ -160,6 +161,9 @@ export default function RootLayout() {
           <Stack.Screen name="new-trip" />
           <Stack.Screen name="itinerary-review" />
           <Stack.Screen name="trip-detail" />
+          <Stack.Screen name="edit-itinerary" />
+          <Stack.Screen name="budget-breakdown" />
+          <Stack.Screen name="active-trip" />
           <Stack.Screen name="qr-pass" />
           <Stack.Screen name="modal" options={{ presentation: 'modal', headerShown: true, title: 'Modal' }} />
         </Stack>

@@ -1,10 +1,19 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, Modal,
-  StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Animated,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Modal,
+  StyleSheet,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
 import { api } from '@/api/client';
@@ -15,17 +24,46 @@ import { OFFLINE_MESSAGES } from '@/constants/offline';
 import { LOADER_MESSAGES_ITINERARY } from '@/constants/loader';
 import { getErrorMessage } from '@/utils/errorHandler';
 
-const currencies = ['USD', 'EUR', 'GBP', 'TRY'];
+const BG = '#F8F8F6';
+const TEXT = '#1F2937';
+const GREEN = '#10B981';
+const GREY = '#6B7280';
+const LIGHT_GRAY = '#F3F4F6';
+
+const currencies = ['USD', 'EUR', 'GBP', 'TRY'] as const;
+
+const currencyLabels: Record<string, string> = {
+  USD: 'USD ($)',
+  EUR: 'EUR (€)',
+  GBP: 'GBP (£)',
+  TRY: 'TRY (₺)',
+};
 
 const preferences = [
-  { id: 'budget_hotel', label: 'Budget Hotel', apiValue: 'budget hotel' },
-  { id: 'hostel', label: 'Hostel', apiValue: 'hostel' },
-  { id: 'private_room', label: 'Private Room', apiValue: 'private room' },
-  { id: 'window_seat', label: 'Window Seat', apiValue: 'window seat' },
-  { id: 'aisle_seat', label: 'Aisle Seat', apiValue: 'aisle seat' },
-  { id: 'vegetarian', label: 'Vegetarian', apiValue: 'vegetarian meals' },
-  { id: 'nonstop_flights', label: 'Non-stop Flights', apiValue: 'non-stop flights only' },
+  { id: 'budget_hotel', label: 'Budget Hotel', apiValue: 'budget hotel', group: 'accommodation' as const },
+  { id: 'hostel', label: 'Hostel', apiValue: 'hostel', group: 'accommodation' as const },
+  { id: 'private_room', label: 'Airbnb', apiValue: 'private room', group: 'accommodation' as const },
+  { id: 'window_seat', label: 'Public Transit', apiValue: 'window seat', group: 'transport' as const },
+  { id: 'aisle_seat', label: 'Night Bus', apiValue: 'aisle seat', group: 'transport' as const },
+  { id: 'nonstop_flights', label: 'Walkable', apiValue: 'non-stop flights only', group: 'transport' as const },
+  { id: 'vegetarian', label: 'Vegetarian', apiValue: 'vegetarian meals', group: 'transport' as const },
 ];
+
+const STEPS = [
+  { key: 'dest', label: 'Dest' },
+  { key: 'origin', label: 'Origin' },
+  { key: 'dates', label: 'Dates' },
+  { key: 'budget', label: 'Budget' },
+  { key: 'prefs', label: 'Prefs' },
+];
+
+const CARD_SHADOW = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.05,
+  shadowRadius: 10,
+  elevation: 2,
+};
 
 function parseDate(str: string): Date | null {
   const d = new Date(str);
@@ -56,7 +94,7 @@ function validate(
   origin: string,
   startDate: string,
   endDate: string,
-  budget: string
+  budget: string,
 ): string | null {
   if (!destination.trim()) return 'Destination is required.';
   if (!origin.trim()) return 'Origin city is required.';
@@ -76,8 +114,86 @@ function validate(
   return null;
 }
 
+function getCurrentStepIndex(
+  destination: string,
+  origin: string,
+  startDate: string,
+  endDate: string,
+  budget: string,
+): number {
+  if (!destination.trim()) return 0;
+  if (!origin.trim()) return 1;
+  if (!startDate.trim() || !endDate.trim()) return 2;
+  if (!budget.trim()) return 3;
+  return 4;
+}
+
+function StepRail({ currentStep }: { currentStep: number }) {
+  return (
+    <View style={styles.stepRail}>
+      {STEPS.map((step, index) => {
+        const isComplete = index < currentStep;
+        const isActive = index === currentStep;
+        const isUpcoming = index > currentStep;
+        const dotStyle = isUpcoming
+          ? styles.stepDotUpcoming
+          : isActive || isComplete
+            ? styles.stepDotActive
+            : styles.stepDotUpcoming;
+        const labelStyle = isUpcoming ? styles.stepLabelUpcoming : styles.stepLabelActive;
+
+        return (
+          <React.Fragment key={step.key}>
+            {index > 0 ? (
+              <View
+                style={[
+                  styles.stepConnector,
+                  index <= currentStep ? styles.stepConnectorActive : styles.stepConnectorIdle,
+                ]}
+              />
+            ) : null}
+            <View style={[styles.stepItem, isUpcoming && styles.stepItemUpcoming]}>
+              <View style={dotStyle}>
+                <Text style={[styles.stepDotText, isUpcoming && styles.stepDotTextUpcoming]}>
+                  {index + 1}
+                </Text>
+              </View>
+              <Text style={labelStyle}>{step.label}</Text>
+            </View>
+          </React.Fragment>
+        );
+      })}
+    </View>
+  );
+}
+
+function SectionCard({
+  stepNum,
+  title,
+  icon,
+  children,
+}: {
+  stepNum: string;
+  title: string;
+  icon: keyof typeof Feather.glyphMap;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={[styles.sectionCard, CARD_SHADOW]}>
+      <View style={styles.sectionCardHeader}>
+        <View style={styles.sectionIconWrap}>
+          <Feather name={icon} size={10} color={GREEN} />
+        </View>
+        <Text style={styles.sectionCardTitle}>{stepNum} {title}</Text>
+      </View>
+      {children}
+    </View>
+  );
+}
+
 export default function NewTripScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { isOnline } = useConnectivity();
   const [destination, setDestination] = useState('');
   const [origin, setOrigin] = useState('');
@@ -86,26 +202,29 @@ export default function NewTripScreen() {
   const [pickerField, setPickerField] = useState<'startDate' | 'endDate' | null>(null);
   const [pickerValue, setPickerValue] = useState<Date>(new Date());
   const [budget, setBudget] = useState('');
-  const [currency, setCurrency] = useState('USD');
+  const [currency, setCurrency] = useState<(typeof currencies)[number]>('USD');
   const [selectedPrefs, setSelectedPrefs] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [focusedField, setFocusedField] = useState<string | null>(null);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
 
-  useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 520,
-      useNativeDriver: true,
-    }).start();
-  }, [fadeAnim]);
+  const currentStep = useMemo(
+    () => getCurrentStepIndex(destination, origin, startDate, endDate, budget),
+    [destination, origin, startDate, endDate, budget],
+  );
+
+  const accommodationPrefs = useMemo(
+    () => preferences.filter((p) => p.group === 'accommodation'),
+    [],
+  );
+  const transportPrefs = useMemo(
+    () => preferences.filter((p) => p.group === 'transport'),
+    [],
+  );
 
   const togglePref = (id: string) => {
     if (loading) return;
-    setSelectedPrefs(prev =>
-      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
-    );
+    setSelectedPrefs((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
   };
 
   const handleGenerate = async () => {
@@ -138,18 +257,16 @@ export default function NewTripScreen() {
       });
 
       const tripId =
-        createRes.data?.id ??
-        (createRes.data as { data?: { id?: string } })?.data?.id;
+        createRes.data?.id ?? (createRes.data as { data?: { id?: string } })?.data?.id;
       if (!tripId) {
         setError('Server did not return a trip ID.');
         setLoading(false);
         return;
       }
 
-      const genRes = await api.post<{ jobId?: string; id?: string }>(
-        '/itinerary/generate',
-        { tripId }
-      );
+      const genRes = await api.post<{ jobId?: string; id?: string }>('/itinerary/generate', {
+        tripId,
+      });
       const jobId = genRes.data?.jobId ?? genRes.data?.id;
       if (!jobId) {
         setError('Server did not return a job ID.');
@@ -170,8 +287,7 @@ export default function NewTripScreen() {
         }
         if (status === 'failed' || status === 'error') {
           const msg =
-            (jobRes.data as { message?: string })?.message ??
-            'Itinerary generation failed.';
+            (jobRes.data as { message?: string })?.message ?? 'Itinerary generation failed.';
           setError(msg);
           setLoading(false);
           return;
@@ -179,9 +295,10 @@ export default function NewTripScreen() {
       }
 
       setError('Generation is taking longer than expected. Please check "Your Trips" later.');
-    } catch (err: any) {
-      console.log('TRIP ERROR:', JSON.stringify(err?.response?.data, null, 2));
-      console.log('STATUS:', err?.response?.status);
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: unknown; status?: number } };
+      console.log('TRIP ERROR:', JSON.stringify(e?.response?.data, null, 2));
+      console.log('STATUS:', e?.response?.status);
       setError(getErrorMessage(err));
     } finally {
       setLoading(false);
@@ -190,24 +307,16 @@ export default function NewTripScreen() {
 
   const disabled = loading || !isOnline;
 
-  const inputBorder = (field: string) => ({
-    borderColor: focusedField === field
-      ? 'rgba(99,102,241,0.5)'
-      : 'rgba(255,255,255,0.07)',
-  });
-
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const openDatePicker = (field: 'startDate' | 'endDate') => {
     if (disabled) return;
     setError('');
-
     const current =
       field === 'startDate'
         ? parseDate(startDate) ?? today
         : parseDate(endDate) ?? parseDate(startDate) ?? today;
-
     setPickerValue(current);
     setPickerField(field);
   };
@@ -232,19 +341,34 @@ export default function NewTripScreen() {
     return min;
   };
 
+  const renderPrefChip = (pref: (typeof preferences)[number]) => {
+    const selected = selectedPrefs.includes(pref.id);
+    return (
+      <TouchableOpacity
+        key={pref.id}
+        style={[styles.prefChip, selected && styles.prefChipActive]}
+        onPress={() => togglePref(pref.id)}
+        activeOpacity={0.85}
+        disabled={disabled}
+      >
+        <Text style={[styles.prefChipText, selected && styles.prefChipTextActive]}>{pref.label}</Text>
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <>
       <View style={styles.screen}>
-        <View style={styles.glowOrbTop} />
-        <View style={styles.glowOrbBottom} />
-
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <ScrollView
             style={styles.scroll}
-            contentContainerStyle={styles.content}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: 160 + insets.bottom },
+            ]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
@@ -262,6 +386,7 @@ export default function NewTripScreen() {
               <Text style={styles.subtitle}>Fill in the details below</Text>
               <View style={styles.divider} />
 
+            <View style={styles.main}>
               {error ? (
                 <View style={styles.errorBox}>
                   <Text style={styles.errorText}>{error}</Text>
@@ -274,25 +399,25 @@ export default function NewTripScreen() {
                 </View>
               ) : null}
 
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>DESTINATION CITY</Text>
+              <SectionCard stepNum="01" title="Destination" icon="map-pin">
                 <DestinationSearch
-                  placeholder="e.g. Paris, Tokyo, New York"
+                  placeholder="Where do you want to go?"
                   value={destination}
                   onSelect={(city, country) => setDestination(`${city}, ${country}`)}
                   editable={!disabled}
+                  variant="light"
                 />
-              </View>
+              </SectionCard>
 
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>ORIGIN CITY</Text>
+              <SectionCard stepNum="02" title="Origin" icon="navigation">
                 <DestinationSearch
-                  placeholder="e.g. London, Istanbul, Berlin"
+                  placeholder="Where are you flying from?"
                   value={origin}
                   onSelect={(city, country) => setOrigin(`${city}, ${country}`)}
                   editable={!disabled}
+                  variant="light"
                 />
-              </View>
+              </SectionCard>
 
               <View style={styles.field}>
                 <Text style={styles.fieldLabel}>START DATE</Text>
@@ -338,66 +463,63 @@ export default function NewTripScreen() {
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>TOTAL BUDGET</Text>
+              <SectionCard stepNum="04" title="Budget" icon="credit-card">
+                <Text style={styles.budgetHint}>
+                  Total budget for the entire trip (including flights & stay)
+                </Text>
                 <View style={styles.budgetRow}>
+                  <TouchableOpacity
+                    style={styles.currencySelect}
+                    onPress={() => !disabled && setCurrencyPickerOpen(true)}
+                    disabled={disabled}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.currencySelectText}>{currencyLabels[currency]}</Text>
+                    <Feather name="chevron-down" size={12} color={GREY} />
+                  </TouchableOpacity>
                   <TextInput
-                    style={[styles.input, styles.budgetInput, inputBorder('budget')]}
-                    placeholder="e.g. 2000"
-                    placeholderTextColor="#4b5563"
+                    style={styles.budgetInput}
+                    placeholder="e.g. 1500"
+                    placeholderTextColor="#9CA3AF"
                     value={budget}
                     onChangeText={setBudget}
                     keyboardType="numeric"
                     editable={!disabled}
-                    onFocus={() => setFocusedField('budget')}
-                    onBlur={() => setFocusedField(null)}
                   />
-                  <View style={styles.currencyRow}>
-                    {currencies.map(c => (
-                      <TouchableOpacity
-                        key={c}
-                        style={[styles.currencyBtn, currency === c && styles.currencyBtnActive]}
-                        onPress={() => !disabled && setCurrency(c)}
-                      >
-                        <Text style={[styles.currencyText, currency === c && styles.currencyTextActive]}>
-                          {c}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
                 </View>
-              </View>
+              </SectionCard>
 
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>PREFERENCES</Text>
-                <View style={styles.prefsGrid}>
-                  {preferences.map(pref => (
-                    <TouchableOpacity
-                      key={pref.id}
-                      style={[styles.prefChip, selectedPrefs.includes(pref.id) && styles.prefChipActive]}
-                      onPress={() => togglePref(pref.id)}
-                    >
-                      <Text style={[styles.prefText, selectedPrefs.includes(pref.id) && styles.prefTextActive]}>
-                        {pref.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+              <SectionCard stepNum="05" title="Preferences" icon="sliders">
+                <View style={styles.prefGroup}>
+                  <Text style={styles.prefGroupLabel}>Accommodation</Text>
+                  <View style={styles.prefRow}>{accommodationPrefs.map(renderPrefChip)}</View>
                 </View>
-              </View>
-
-              <TouchableOpacity
-                style={[styles.generateBtn, disabled && styles.generateBtnDisabled]}
-                onPress={handleGenerate}
-                disabled={disabled}
-                activeOpacity={0.9}
-              >
-                <Text style={styles.generateBtnText}>Generate My Trip</Text>
-              </TouchableOpacity>
-
-              <View style={{ height: 40 }} />
-            </Animated.View>
+                <View style={styles.prefGroup}>
+                  <Text style={styles.prefGroupLabel}>Transport</Text>
+                  <View style={styles.prefRow}>{transportPrefs.map(renderPrefChip)}</View>
+                </View>
+              </SectionCard>
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
+
+        <View style={[styles.stickyCta, { bottom: 24 + insets.bottom }]}>
+          <TouchableOpacity
+            style={[styles.generateBtn, disabled && styles.generateBtnDisabled]}
+            onPress={handleGenerate}
+            disabled={disabled}
+            activeOpacity={0.92}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Feather name="zap" size={16} color="#fff" />
+            )}
+            <Text style={styles.generateBtnText}>
+              {loading ? 'Generating...' : 'Generate My Trip'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <FullScreenLoader visible={loading} messages={LOADER_MESSAGES_ITINERARY} />
@@ -416,31 +538,37 @@ export default function NewTripScreen() {
           <TouchableOpacity activeOpacity={1} style={styles.pickerCard} onPress={() => {}}>
             <View style={styles.pickerHeader}>
               <Text style={styles.pickerTitle}>
-                {pickerField === 'startDate' ? 'Select start date' : 'Select end date'}
+                {pickerField === 'startDate' ? 'Select departure' : 'Select return'}
               </Text>
-              <TouchableOpacity onPress={() => setPickerField(null)} accessibilityRole="button" accessibilityLabel="Close date picker">
-                <Feather name="x" size={18} color="#9ca3af" />
+              <TouchableOpacity onPress={() => setPickerField(null)}>
+                <Feather name="x" size={18} color={GREY} />
               </TouchableOpacity>
             </View>
-
             {pickerField ? (
-              <DateTimePicker
-                value={pickerValue}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                minimumDate={minimumForField(pickerField)}
-                onChange={(_: DateTimePickerEvent, d?: Date) => {
-                  if (!d) return;
-                  setPickerValue(d);
-                }}
-              />
+              <>
+                <Text style={styles.pickerPreview}>
+                  {formatDisplayDate(formatDateYYYYMMDD(pickerValue))}
+                </Text>
+                <View style={styles.pickerWrap}>
+                  <DateTimePicker
+                    value={pickerValue}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    minimumDate={minimumForField(pickerField)}
+                    themeVariant="light"
+                    textColor={TEXT}
+                    accentColor={GREEN}
+                    style={styles.dateTimePicker}
+                    onChange={(_: DateTimePickerEvent, d?: Date) => {
+                      if (!d) return;
+                      setPickerValue(d);
+                    }}
+                  />
+                </View>
+              </>
             ) : null}
-
             <View style={styles.pickerActions}>
-              <TouchableOpacity
-                style={styles.pickerBtnGhost}
-                onPress={() => setPickerField(null)}
-              >
+              <TouchableOpacity style={styles.pickerBtnGhost} onPress={() => setPickerField(null)}>
                 <Text style={styles.pickerBtnGhostText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -457,96 +585,257 @@ export default function NewTripScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      <Modal
+        visible={currencyPickerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCurrencyPickerOpen(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.modalBackdrop}
+          onPress={() => setCurrencyPickerOpen(false)}
+        >
+          <View style={styles.currencyModal}>
+            {currencies.map((c) => (
+              <TouchableOpacity
+                key={c}
+                style={[styles.currencyOption, currency === c && styles.currencyOptionActive]}
+                onPress={() => {
+                  setCurrency(c);
+                  setCurrencyPickerOpen(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.currencyOptionText,
+                    currency === c && styles.currencyOptionTextActive,
+                  ]}
+                >
+                  {currencyLabels[c]}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#0d0d14' },
+  screen: { flex: 1, backgroundColor: BG },
   flex: { flex: 1 },
-  glowOrbTop: {
-    position: 'absolute', top: -100, right: -80,
-    width: 320, height: 320, borderRadius: 999,
-    backgroundColor: 'rgba(99,102,241,0.08)',
-  },
-  glowOrbBottom: {
-    position: 'absolute', bottom: -120, left: -80,
-    width: 280, height: 280, borderRadius: 999,
-    backgroundColor: 'rgba(99,102,241,0.06)',
-  },
   scroll: { flex: 1 },
-  content: { paddingHorizontal: 24, paddingBottom: 60 },
+  scrollContent: { flexGrow: 1 },
+  header: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 24,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    ...CARD_SHADOW,
+  },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 24 },
   backBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    marginTop: 48, marginBottom: 24, alignSelf: 'flex-start',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(243, 244, 246, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  backText: { color: '#6366f1', fontSize: 15, fontWeight: '600' },
-  eyebrow: {
-    fontSize: 10, color: '#4b5563', letterSpacing: 1.5,
-    textTransform: 'uppercase', marginBottom: 8,
+  headerTitle: { fontSize: 20, fontWeight: '700', color: TEXT, letterSpacing: -0.3 },
+  stepRail: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    paddingBottom: 8,
   },
-  title: { fontSize: 26, fontWeight: '700', color: '#ffffff', marginBottom: 6 },
-  subtitle: { fontSize: 13, color: '#9ca3af', marginBottom: 16 },
-  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginBottom: 24 },
+  stepItem: { alignItems: 'center', minWidth: 48, gap: 4 },
+  stepItemUpcoming: { opacity: 0.5 },
+  stepDotActive: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: GREEN,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepDotUpcoming: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: LIGHT_GRAY,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepDotText: { fontSize: 10, fontWeight: '700', color: '#fff' },
+  stepDotTextUpcoming: { color: GREY },
+  stepLabelActive: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: GREEN,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  stepLabelUpcoming: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: GREY,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  stepConnector: { width: 32, height: 2, borderRadius: 1, marginTop: 11 },
+  stepConnectorActive: { backgroundColor: 'rgba(16, 185, 129, 0.2)' },
+  stepConnectorIdle: { backgroundColor: LIGHT_GRAY },
+  main: { paddingHorizontal: 24, paddingTop: 24, gap: 24 },
   errorBox: {
-    backgroundColor: 'rgba(239,68,68,0.1)',
-    borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)',
-    borderRadius: 10, padding: 12, marginBottom: 20,
-  },
-  errorText: { color: '#f87171', textAlign: 'center', fontSize: 14 },
-  field: { marginBottom: 20 },
-  fieldLabel: {
-    fontSize: 10, color: '#4b5563', letterSpacing: 1.5,
-    textTransform: 'uppercase', marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#13131f',
+    backgroundColor: '#FEF2F2',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-    borderRadius: 12, height: 52,
-    paddingHorizontal: 16,
-    fontSize: 15, color: '#ffffff',
+    borderColor: '#FECACA',
+    borderRadius: 16,
+    padding: 12,
+  },
+  errorText: { color: '#EF4444', textAlign: 'center', fontSize: 14 },
+  sectionCard: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 0,
+  },
+  sectionCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
+  sectionIconWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionCardTitle: { fontSize: 14, fontWeight: '700', color: TEXT },
+  datesRow: { flexDirection: 'row', gap: 12 },
+  dateCol: { flex: 1 },
+  dateLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: GREY,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+    marginLeft: 4,
   },
   dateInput: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    backgroundColor: 'rgba(243, 244, 246, 0.5)',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingRight: 14,
   },
-  dateText: { color: '#ffffff', fontSize: 15 },
-  datePlaceholder: { color: '#4b5563' },
-  budgetRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
-  budgetInput: { flex: 1 },
-  currencyRow: { flexDirection: 'row', gap: 6 },
-  currencyBtn: {
-    backgroundColor: '#13131f',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
-    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 10,
+  dateIcon: { marginLeft: 14, marginRight: 8 },
+  dateText: { flex: 1, fontSize: 14, color: '#1F2937', fontWeight: '600' },
+  datePlaceholder: { color: '#9CA3AF', fontWeight: '400' },
+  pickerPreview: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    textAlign: 'center',
+    marginBottom: 8,
   },
-  currencyBtnActive: {
-    backgroundColor: 'rgba(99,102,241,0.15)',
-    borderColor: '#6366f1',
+  pickerWrap: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    overflow: 'hidden',
   },
-  currencyText: { color: '#9ca3af', fontSize: 13, fontWeight: '600' },
-  currencyTextActive: { color: '#6366f1' },
-  prefsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  dateTimePicker: {
+    alignSelf: 'center',
+    width: '100%',
+    backgroundColor: '#fff',
+  },
+  budgetHint: { fontSize: 12, color: GREY, marginBottom: 12, lineHeight: 18 },
+  budgetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(243, 244, 246, 0.5)',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  currencySelect: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRightWidth: 1,
+    borderRightColor: '#E5E7EB',
+  },
+  currencySelectText: { fontSize: 14, fontWeight: '600', color: TEXT },
+  budgetInput: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: TEXT,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  prefGroup: { marginBottom: 16 },
+  prefGroupLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: GREY,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  prefRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   prefChip: {
-    backgroundColor: '#13131f',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
-    borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#fff',
   },
   prefChipActive: {
-    backgroundColor: 'rgba(99,102,241,0.15)',
-    borderColor: '#6366f1',
+    backgroundColor: GREEN,
+    borderColor: GREEN,
+    shadowColor: GREEN,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  prefText: { color: '#9ca3af', fontSize: 14 },
-  prefTextActive: { color: '#6366f1', fontWeight: '600' },
+  prefChipText: { fontSize: 13, fontWeight: '500', color: TEXT },
+  prefChipTextActive: { color: '#fff', fontWeight: '600' },
+  stickyCta: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    zIndex: 40,
+  },
   generateBtn: {
-    width: '100%', height: 54, backgroundColor: '#6366f1',
-    borderRadius: 12, alignItems: 'center', justifyContent: 'center',
-    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: GREEN,
+    borderRadius: 999,
+    paddingVertical: 16,
+    shadowColor: GREEN,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 4,
   },
   generateBtnDisabled: { opacity: 0.6 },
-  generateBtnText: { color: '#ffffff', fontWeight: '700', fontSize: 16 },
+  generateBtnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.55)',
@@ -554,11 +843,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pickerCard: {
-    backgroundColor: '#13131f',
-    borderRadius: 16,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-    padding: 14,
+    borderColor: '#F3F4F6',
   },
   pickerHeader: {
     flexDirection: 'row',
@@ -566,7 +855,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 8,
   },
-  pickerTitle: { color: '#ffffff', fontSize: 15, fontWeight: '700' },
+  pickerTitle: { color: TEXT, fontSize: 16, fontWeight: '700' },
   pickerActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -576,16 +865,31 @@ const styles = StyleSheet.create({
   pickerBtnGhost: {
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: '#E5E7EB',
   },
-  pickerBtnGhostText: { color: '#9ca3af', fontWeight: '700' },
+  pickerBtnGhostText: { color: GREY, fontWeight: '600' },
   pickerBtnPrimary: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: '#6366f1',
+    borderRadius: 12,
+    backgroundColor: GREEN,
   },
-  pickerBtnPrimaryText: { color: '#ffffff', fontWeight: '800' },
+  pickerBtnPrimaryText: { color: '#fff', fontWeight: '700' },
+  currencyModal: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 8,
+    marginTop: 'auto',
+    marginBottom: 'auto',
+  },
+  currencyOption: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+  },
+  currencyOptionActive: { backgroundColor: 'rgba(16, 185, 129, 0.1)' },
+  currencyOptionText: { fontSize: 16, color: TEXT, fontWeight: '500' },
+  currencyOptionTextActive: { color: GREEN, fontWeight: '700' },
 });

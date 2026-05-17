@@ -22,74 +22,70 @@ import { useConnectivity } from "@/hooks/useConnectivity";
 import { useToastStore } from "@/utils/toast";
 import { getAccessToken, clearTokens } from "@/utils/auth";
 import {
-  cacheTrip,
-  getCachedTrip,
-  getCachedTripIds,
-} from "@/utils/offlineCache";
+  getRawList,
+  normalizeTrip,
+  getCity,
+  STATUS_COLORS,
+  formatDateRange,
+} from '@/utils/homeHelpers';
+import { UserAvatar } from '@/components/UserAvatar';
+import { TripCoverImage } from '@/components/TripCoverImage';
+import { getResolvedProfilePhotoUrl, mapProfileToView } from '@/utils/profileMappers';
 
-const STATUS_COLORS: Record<string, string> = {
-  PENDING: "#f59e0b",
-  CONFIRMED: "#38bdf8",
-  ACTIVE: "#22c55e",
-  COMPLETED: "#94a3b8",
-  CANCELLED: "#ef4444",
+type RawRecord = Record<string, unknown>;
+
+const BG = '#F8F8F6';
+const TEXT = '#1F2937';
+const GREEN = '#10B981';
+const GREY = '#6B7280';
+const LIGHT_GRAY = '#F3F4F6';
+const BORDER = '#F3F4F6';
+const PENDING_DOT = '#FACD3D';
+
+const CARD_SHADOW = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.05,
+  shadowRadius: 10,
+  elevation: 3,
 };
 
-function normalizeTrip(raw: Record<string, unknown>): TripCardData {
-  const id = String(raw.id ?? raw.tripId ?? "");
-  const destination = String(raw.destination ?? "");
-  const startDate = String(raw.startDate ?? raw.start_date ?? "");
-  const endDate = String(raw.endDate ?? raw.end_date ?? "");
-  const totalBudget = Number(raw.totalBudget ?? raw.total_budget ?? 0);
-  const currency = String(raw.currency ?? "USD");
-  const status = String(
-    raw.status ?? "PENDING",
-  ).toUpperCase() as TripCardData["status"];
-  const validStatus: TripCardData["status"][] = [
-    "PENDING",
-    "CONFIRMED",
-    "ACTIVE",
-    "COMPLETED",
-    "CANCELLED",
-  ];
-  return {
-    id,
-    destination,
-    startDate,
-    endDate,
-    totalBudget,
-    currency,
-    status: validStatus.includes(status) ? status : "PENDING",
-  };
+function formatBudget(currency: string, amount: number): string {
+  const sym =
+    currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : `${currency} `;
+  return `${sym}${amount.toLocaleString()}`;
 }
 
-function getGreeting(): string {
-  const h = new Date().getHours();
-  if (h < 12) return "GOOD MORNING";
-  if (h < 18) return "GOOD AFTERNOON";
-  return "GOOD EVENING";
+function formatStatus(status: string): string {
+  return status.charAt(0) + status.slice(1).toLowerCase();
 }
 
-function getRelativeTripTime(startDate: string): string {
-  const d = new Date(startDate);
-  if (isNaN(d.getTime())) return "Schedule unavailable";
-  const now = new Date();
-  const diffMs = d.getTime() - now.getTime();
-  const dayDiff = Math.ceil(Math.abs(diffMs) / (1000 * 60 * 60 * 24));
-  return diffMs >= 0 ? `${dayDiff} days left` : `${dayDiff} days ago`;
+function getStatusDotColor(status: string): string {
+  if (status === 'PENDING') return PENDING_DOT;
+  return STATUS_COLORS[status] ?? GREEN;
 }
 
-function formatDateRange(startDate: string, endDate: string): string {
-  const fmt = (d: string) =>
-    new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  const year = endDate ? new Date(endDate).getFullYear() : "";
-  return `${fmt(startDate)} - ${fmt(endDate)}${year ? `, ${year}` : ""}`;
+function getCountry(destination: string): string {
+  const parts = destination.split(',').map((p) => p.trim());
+  return parts.length > 1 ? parts[parts.length - 1] : parts[0];
 }
 
-const statFeatherName = (label: string): keyof typeof Feather.glyphMap => {
-  if (label === "Total Trips") return "map";
-  if (label === "Active") return "activity";
-  return "check-circle";
+function getTripCardTitle(destination: string): string {
+  const city = getCity(destination);
+  return city ? `${city} Adventure` : destination;
+}
+
+function getCompactSubtitle(trip: TripCardData): string {
+  return `${getCountry(trip.destination)} • ${formatDateRange(trip.startDate, trip.endDate)}`;
+}
+
+type HomeTripFilter = 'all' | 'upcoming' | 'active' | 'completed';
+type QuickStatKey = 'total' | 'active' | 'completed';
+
+const QUICK_STAT_TO_FILTER: Record<QuickStatKey, HomeTripFilter> = {
+  total: 'all',
+  active: 'active',
+  completed: 'completed',
 };
 
 function SkeletonLoader() {
@@ -144,6 +140,7 @@ function SkeletonCard() {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { isOnline } = useConnectivity();
   const toastMessage = useToastStore((state) => state.message);
   const toastType = useToastStore((state) => state.type);
@@ -157,26 +154,9 @@ export default function HomeScreen() {
   const [tripsLoading, setTripsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const pulseAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1400,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 0,
-          duration: 1400,
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    pulse.start();
-    return () => pulse.stop();
-  }, [pulseAnim]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [tripFilter, setTripFilter] = useState<HomeTripFilter>('all');
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     if (error) {
@@ -188,14 +168,14 @@ export default function HomeScreen() {
   const checkAuthAndFetch = useCallback(async () => {
     const token = await getAccessToken();
     if (!token) {
-      router.replace("/login");
+      router.replace('/login');
       return;
     }
     setError(null);
     try {
       const [profileRes, tripsRes] = await Promise.all([
         userApi.getProfile(),
-        tripsApi.getAll({ page: 1, limit: 10 }),
+        tripsApi.getAll({ page: 1, limit: 50 }),
       ]);
 
       const profile = ((
@@ -233,12 +213,10 @@ export default function HomeScreen() {
         if (id) cacheTrip(id, t).catch(() => {});
       }
     } catch (err: unknown) {
-      const e = err as {
-        response?: { status?: number; data?: { message?: string } };
-      };
+      const e = err as { response?: { status?: number; data?: { message?: string } } };
       if (e?.response?.status === 401) {
         await clearTokens();
-        router.replace("/login");
+        router.replace('/login');
         return;
       }
       if (!isOnline) {
@@ -246,8 +224,7 @@ export default function HomeScreen() {
         const cached: TripCardData[] = [];
         for (const id of ids) {
           const c = await getCachedTrip(id);
-          if (c?.data)
-            cached.push(normalizeTrip(c.data as Record<string, unknown>));
+          if (c?.data) cached.push(normalizeTrip(c.data as RawRecord));
         }
         if (cached.length > 0) {
           setTrips(cached);
@@ -255,11 +232,9 @@ export default function HomeScreen() {
           setError(null);
         } else setError("Offline. No cached trips.");
       } else {
-        setError(
-          e?.response?.data?.message ?? "Failed to load. Pull to refresh.",
-        );
+        setError(e?.response?.data?.message ?? 'Failed to load. Pull to refresh.');
       }
-      setUserName((prev) => prev || "Traveler");
+      setUserName((prev) => prev || 'Traveler');
     } finally {
       setLoading(false);
       setTripsLoading(false);
@@ -273,7 +248,7 @@ export default function HomeScreen() {
       (async () => {
         const token = await getAccessToken();
         if (!token) {
-          if (!cancelled) router.replace("/login");
+          if (!cancelled) router.replace('/login');
           return;
         }
         setLoading(true);
@@ -283,13 +258,17 @@ export default function HomeScreen() {
       return () => {
         cancelled = true;
       };
-    }, [checkAuthAndFetch]),
+    }, [checkAuthAndFetch, router]),
   );
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await checkAuthAndFetch();
-  };
+  const filteredTrips = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    let list = trips;
+    if (q) {
+      list = list.filter((t) => t.destination.toLowerCase().includes(q));
+    }
+    return filterTripsByTab(list, tripFilter);
+  }, [trips, searchQuery, tripFilter]);
 
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
@@ -309,21 +288,117 @@ export default function HomeScreen() {
   const quickStats = [
     { label: "Total Trips", value: trips.length, accent: "#3b82f6" },
     {
-      label: "Active",
-      value: trips.filter((t) => t.status === "ACTIVE").length,
-      accent: "#22c55e",
+      key: 'active',
+      label: 'Active',
+      value: trips.filter((t) => t.status === 'ACTIVE').length,
     },
     {
-      label: "Completed",
-      value: trips.filter((t) => t.status === "COMPLETED").length,
-      accent: "#94a3b8",
+      key: 'completed',
+      label: 'Completed',
+      value: trips.filter((t) => t.status === 'COMPLETED').length,
     },
   ];
 
+  const handleQuickStatPress = useCallback((key: QuickStatKey) => {
+    setTripFilter(QUICK_STAT_TO_FILTER[key]);
+    setShowFilters(true);
+  }, []);
+
+  const openTrip = (tripId: string) => {
+    router.push({ pathname: '/trip-detail', params: { tripId } });
+  };
+
+  const renderFullTripCard = (trip: TripCardData, index: number, showFooter: boolean) => {
+    const dotColor = getStatusDotColor(trip.status);
+    return (
+      <TouchableOpacity
+        key={trip.id}
+        style={[s.tripCard, CARD_SHADOW]}
+        onPress={() => openTrip(trip.id)}
+        activeOpacity={0.92}
+      >
+        <View style={s.tripImageWrap}>
+          <TripCoverImage
+            destination={trip.destination}
+            containerStyle={StyleSheet.absoluteFillObject}
+          />
+          <View style={s.tripImageGradientTop} />
+          <View style={s.tripImageGradientBottom} />
+          <View style={s.tripImageTopRow}>
+            <View style={s.tripStatusPill}>
+              <View style={[s.statusDot, { backgroundColor: dotColor }]} />
+              <Text style={s.tripStatusText}>{formatStatus(trip.status)}</Text>
+            </View>
+            <View style={s.tripPricePill}>
+              <Text style={s.tripPriceText}>{formatBudget(trip.currency, trip.totalBudget)}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={s.tripBody}>
+          <Text style={s.tripTitle}>{getTripCardTitle(trip.destination)}</Text>
+          <View style={s.tripMetaRow}>
+            <View style={s.tripMetaItem}>
+              <Feather name="map-pin" size={13} color={`${GREY}99`} />
+              <Text style={s.tripMetaText}>{getCountry(trip.destination)}</Text>
+            </View>
+            <View style={s.tripMetaItem}>
+              <Feather name="calendar" size={13} color={`${GREY}99`} />
+              <Text style={s.tripMetaText}>{formatDateRange(trip.startDate, trip.endDate)}</Text>
+            </View>
+          </View>
+
+          {showFooter ? (
+            <View style={s.tripFooter}>
+              <View style={s.avatarStack}>
+                <UserAvatar photoUrl={userPhotoUrl} name={userName} size={24} style={s.stackAvatar} />
+                <View style={[s.stackAvatar, s.stackAvatarFallback, s.stackAvatarOffset]}>
+                  <Feather name="users" size={12} color={GREY} />
+                </View>
+              </View>
+              <TouchableOpacity style={s.tripArrowBtn} activeOpacity={0.8}>
+                <Feather
+                  name="arrow-right"
+                  size={16}
+                  color={TEXT}
+                  style={{ transform: [{ rotate: '-45deg' }] }}
+                />
+              </TouchableOpacity>
+            </View>
+          ) : null}
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderCompactTripCard = (trip: TripCardData, index: number) => (
+    <TouchableOpacity
+      key={trip.id}
+      style={[s.compactCard, CARD_SHADOW, s.compactCardMuted]}
+      onPress={() => openTrip(trip.id)}
+      activeOpacity={0.88}
+    >
+      <TripCoverImage destination={trip.destination} containerStyle={s.compactThumb} />
+      <View style={s.compactBody}>
+        <View style={s.compactTitleRow}>
+          <Text style={s.compactTitle} numberOfLines={1}>
+            {getTripCardTitle(trip.destination)}
+          </Text>
+          <View style={s.compactStatusBadge}>
+            <Text style={s.compactStatusText}>{formatStatus(trip.status)}</Text>
+          </View>
+        </View>
+        <Text style={s.compactSubtitle} numberOfLines={1}>
+          {getCompactSubtitle(trip)}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+
   if (loading && !userName) {
     return (
-      <View style={[styles.screen, styles.centered]}>
-        <ActivityIndicator size="large" color="#6366f1" />
+      <View style={[s.screen, s.centered]}>
+        <ActivityIndicator size="large" color={GREEN} />
       </View>
     );
   }
@@ -344,23 +419,37 @@ export default function HomeScreen() {
       />
 
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.contentContainer}
+        style={s.scroll}
+        contentContainerStyle={[s.scrollContent, { paddingBottom: 100 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#6366f1"
+            onRefresh={() => {
+              setRefreshing(true);
+              checkAuthAndFetch();
+            }}
+            tintColor={GREEN}
           />
         }
       >
-        <OfflineBanner visible={!isOnline} />
+        <View style={[s.header, { paddingTop: insets.top + 12 }]}>
+          <OfflineBanner visible={!isOnline} />
 
-        <View style={styles.header}>
-          <View style={styles.headerTextBlock}>
-            <Text style={styles.greeting}>{getGreeting()}</Text>
-            <Text style={styles.userName}>{userName || "Traveler"}</Text>
+          <View style={s.headerTop}>
+            <View style={s.headerText}>
+              <Text style={s.greeting}>Welcome back,</Text>
+              <Text style={s.userName}>{userName || 'Traveler'}</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/profile')}
+              activeOpacity={0.85}
+              accessibilityLabel="Open profile"
+            >
+              <View style={s.avatarRing}>
+                <UserAvatar photoUrl={userPhotoUrl || null} name={userName} size={44} />
+              </View>
+            </TouchableOpacity>
           </View>
           <TouchableOpacity
             style={styles.avatar}
@@ -389,12 +478,13 @@ export default function HomeScreen() {
             onChangeText={handleSearch}
           />
           <TouchableOpacity
-            style={styles.filterBtn}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={[s.planBtn, CARD_SHADOW]}
+            onPress={() => router.push('/new-trip')}
+            activeOpacity={0.92}
           >
-            <Feather name="sliders" size={16} color="#6366f1" />
+            <Feather name="plus" size={14} color="#fff" />
+            <Text style={s.planBtnText}>Plan a New Trip</Text>
           </TouchableOpacity>
-        </View>
 
         <TouchableOpacity
           style={styles.ctaButton}
@@ -427,32 +517,6 @@ export default function HomeScreen() {
             <Feather name="map" size={18} color="#ffffff" />
             <Text style={styles.ctaText}>Plan a New Trip</Text>
           </View>
-        </TouchableOpacity>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.statsRow}
-        >
-          {quickStats.map((stat) => (
-            <View key={stat.label} style={styles.statCard}>
-              <View
-                style={[
-                  styles.statIconWrap,
-                  { borderColor: `${stat.accent}40` },
-                ]}
-              >
-                <Feather
-                  name={statFeatherName(stat.label)}
-                  size={18}
-                  color={stat.accent}
-                />
-              </View>
-              <Text style={styles.statValue}>{stat.value}</Text>
-              <Text style={styles.statLabel}>{stat.label}</Text>
-            </View>
-          ))}
-        </ScrollView>
 
         <View style={styles.sectionTitleWrap}>
           <Text style={styles.sectionEyebrow}>Your itinerary</Text>
@@ -540,110 +604,103 @@ export default function HomeScreen() {
                 </View>
               </View>
 
-              <View style={styles.cardDetailsRow}>
-                <View style={styles.detailColumn}>
-                  <View style={styles.detailLabelRow}>
-                    <Feather name="calendar" size={10} color="#4b5563" />
-                    <Text style={styles.detailLabel}>Dates</Text>
-                  </View>
-                  <View style={styles.detailPill}>
-                    <Text style={styles.detailValue}>
-                      {formatDateRange(trip.startDate, trip.endDate)}
-                    </Text>
-                  </View>
-                  <Text style={styles.daysMeta}>
-                    {getRelativeTripTime(trip.startDate)}
-                  </Text>
-                </View>
-                <View style={styles.detailColumn}>
-                  <View style={styles.detailLabelRow}>
-                    <Feather name="dollar-sign" size={10} color="#4b5563" />
-                    <Text style={styles.detailLabel}>Budget</Text>
-                  </View>
-                  <View style={styles.detailPill}>
-                    <Text style={styles.detailValue}>
-                      {trip.currency} {trip.totalBudget.toLocaleString()}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.cardFooter}>
-                <View style={styles.arrowButton}>
-                  <Feather name="chevron-right" size={16} color="#6366f1" />
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))
-        )}
+          {error ? (
+            <View style={s.errorBox}>
+              <Text style={s.errorText}>{error}</Text>
+            </View>
+          ) : tripsLoading && trips.length === 0 ? (
+            <ActivityIndicator color={GREEN} style={s.spinner} />
+          ) : trips.length === 0 ? (
+            <View style={[s.emptyBox, CARD_SHADOW]}>
+              <Text style={s.emptyTitle}>No trips yet</Text>
+              <Text style={s.emptyText}>
+                Plan your first trip and your travel wallet will appear here.
+              </Text>
+            </View>
+          ) : filteredTrips.length === 0 ? (
+            <View style={[s.emptyBox, CARD_SHADOW]}>
+              <Text style={s.emptyTitle}>No matching trips</Text>
+              <Text style={s.emptyText}>Try a different search or filter.</Text>
+            </View>
+          ) : (
+            <View style={s.tripList}>
+              {fullTripCards.map((trip, i) => renderFullTripCard(trip, i, i === 0))}
+              {compactTripCards.map((trip, i) => renderCompactTripCard(trip, i))}
+            </View>
+          )}
+        </View>
       </ScrollView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#0d0d14" },
-  centered: { justifyContent: "center", alignItems: "center" },
-  glowOrb: { position: "absolute", borderRadius: 999 },
-  glowOrbTop: {
-    width: 400,
-    height: 400,
-    top: -120,
-    right: -100,
-    backgroundColor: "rgba(99,102,241,0.08)",
-  },
-  glowOrbBottom: {
-    width: 300,
-    height: 300,
-    bottom: -100,
-    left: -80,
-    backgroundColor: "rgba(99,102,241,0.06)",
-  },
+const s = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: BG },
+  centered: { justifyContent: 'center', alignItems: 'center' },
   scroll: { flex: 1 },
-  contentContainer: {
-    paddingHorizontal: 24,
-    paddingTop: 58,
-    paddingBottom: 56,
-  },
+  scrollContent: { flexGrow: 1 },
   header: {
-    marginBottom: 22,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    backgroundColor: '#fff',
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    ...CARD_SHADOW,
   },
-  headerTextBlock: { flex: 1, paddingRight: 12 },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  headerText: { flex: 1, paddingRight: 12 },
   greeting: {
-    fontSize: 10,
-    color: "#4b5563",
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    fontWeight: "600",
+    fontSize: 12,
+    color: GREY,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+    marginBottom: 4,
   },
-  userName: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: "#ffffff",
-    marginTop: 6,
-    letterSpacing: -0.5,
-  },
-  avatar: {
+  userName: { fontSize: 24, fontWeight: '700', color: TEXT, letterSpacing: -0.3 },
+  avatarRing: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#13131f",
     borderWidth: 2,
-    borderColor: "rgba(99,102,241,0.4)",
-    alignItems: "center",
-    justifyContent: "center",
+    borderColor: 'rgba(16, 185, 129, 0.2)',
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
   },
-  avatarText: { color: "#6366f1", fontWeight: "700", fontSize: 14 },
+  avatarImage: { width: '100%', height: '100%' },
+  avatarFallback: {
+    flex: 1,
+    backgroundColor: LIGHT_GRAY,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: { color: GREEN, fontWeight: '700', fontSize: 15 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(243, 244, 246, 0.5)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: BORDER,
+    paddingVertical: 14,
+    paddingRight: 16,
+  },
+  searchIcon: { marginLeft: 16, marginRight: 4 },
+  searchInput: { flex: 1, fontSize: 14, color: TEXT, padding: 0, fontWeight: '400' },
+  filterBtn: {
+    width: 48,
     height: 48,
-    paddingHorizontal: 14,
-    marginBottom: 20,
-    backgroundColor: "#13131f",
+    borderRadius: 20,
+    backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.07)",
     borderRadius: 12,
@@ -668,66 +725,63 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "rgba(99,102,241,0.45)",
   },
-  ctaRow: { flexDirection: "row", alignItems: "center" },
-  ctaText: {
-    color: "#ffffff",
-    fontWeight: "700",
-    fontSize: 16,
-    marginLeft: 10,
+  main: { paddingHorizontal: 24, paddingTop: 24, gap: 0 },
+  planBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    width: '100%',
+    backgroundColor: GREEN,
+    borderRadius: 999,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    marginBottom: 32,
+    shadowColor: GREEN,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  statsRow: { paddingBottom: 28, gap: 12 },
+  planBtnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
+  sectionHeading: { fontSize: 16, fontWeight: '700', color: TEXT, marginBottom: 16 },
+  statsRow: { flexDirection: 'row', gap: 12, marginBottom: 32 },
   statCard: {
-    minWidth: 100,
-    backgroundColor: "#13131f",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.07)",
-    borderRadius: 12,
-    padding: 16,
-    marginRight: 12,
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    overflow: 'hidden',
   },
-  statIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+  statCardActive: {
     borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
-    backgroundColor: "rgba(99,102,241,0.08)",
+    borderColor: 'rgba(16, 185, 129, 0.1)',
   },
-  statValue: {
-    color: "#ffffff",
-    fontSize: 28,
-    fontWeight: "700",
-    lineHeight: 32,
+  statTopBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 4,
+    backgroundColor: GREEN,
   },
   statLabel: {
-    color: "#4b5563",
-    marginTop: 4,
-    fontSize: 11,
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    fontWeight: "600",
-  },
-  sectionTitleWrap: { marginBottom: 18 },
-  sectionEyebrow: {
     fontSize: 10,
-    color: "#4b5563",
-    textTransform: "uppercase",
-    letterSpacing: 1.5,
-    fontWeight: "600",
-    marginBottom: 6,
+    color: GREY,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+    textAlign: 'center',
   },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#ffffff",
-    letterSpacing: -0.3,
-  },
-  errorBox: {
-    backgroundColor: "rgba(239,68,68,0.15)",
-    borderRadius: 12,
-    padding: 16,
+  statValue: { fontSize: 20, fontWeight: '700', color: TEXT },
+  statValueActive: { color: GREEN },
+  tripsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 16,
   },
   errorText: { color: "#f87171", textAlign: "center" },
@@ -769,85 +823,155 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 14,
   },
-  emptyText: { color: "#4b5563", fontSize: 16, textAlign: "center" },
-  card: {
-    backgroundColor: "#13131f",
-    borderRadius: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-    overflow: "hidden",
+  tripImageWrap: { height: 128, width: '100%', position: 'relative', backgroundColor: '#E5E7EB' },
+  tripImageGradientTop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.12)',
   },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    marginBottom: 12,
+  tripImageGradientBottom: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 72,
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
-  destinationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-    paddingRight: 10,
+  tripImageTopRow: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
-  cardPinIcon: { marginRight: 8 },
-  destination: { fontSize: 18, fontWeight: "700", color: "#ffffff", flex: 1 },
-  badge: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-  },
-  badgeText: { fontSize: 11, fontWeight: "700" },
-  cardDetailsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-    gap: 12,
-  },
-  detailColumn: { flex: 1 },
-  detailLabelRow: {
-    flexDirection: "row",
-    alignItems: "center",
+  tripStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
-    marginBottom: 6,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    ...CARD_SHADOW,
   },
-  detailLabel: {
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  tripStatusText: {
     fontSize: 10,
-    color: "#4b5563",
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    fontWeight: "600",
+    fontWeight: '600',
+    color: TEXT,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  detailPill: {
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    borderRadius: 8,
+  tripPricePill: {
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  tripPriceText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  tripBody: { padding: 20 },
+  tripTitle: { fontSize: 18, fontWeight: '700', color: TEXT, marginBottom: 4 },
+  tripMetaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginBottom: 16 },
+  tripMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  tripMetaText: { fontSize: 13, color: GREY, fontWeight: '400' },
+  tripFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+  },
+  avatarStack: { flexDirection: 'row', alignItems: 'center' },
+  stackAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  stackAvatarFallback: {
+    backgroundColor: LIGHT_GRAY,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stackAvatarOffset: { marginLeft: -8 },
+  stackAvatarText: { fontSize: 10, fontWeight: '700', color: GREEN },
+  tripArrowBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(243, 244, 246, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compactCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 20,
+    gap: 16,
+  },
+  compactCardMuted: { opacity: 0.8 },
+  compactThumb: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  compactBody: { flex: 1, minWidth: 0 },
+  compactTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 4,
+  },
+  compactTitle: { fontSize: 15, fontWeight: '700', color: TEXT, flex: 1 },
+  compactStatusBadge: {
+    backgroundColor: LIGHT_GRAY,
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  compactStatusText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: GREY,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  compactSubtitle: { fontSize: 12, color: GREY },
+  errorBox: { backgroundColor: 'rgba(239,68,68,0.08)', borderRadius: 16, padding: 16, marginBottom: 16 },
+  errorText: { color: '#EF4444', textAlign: 'center' },
+  filterBtnActive: { backgroundColor: GREEN, borderColor: GREEN },
+  filterChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    paddingHorizontal: 10,
-    alignSelf: "flex-start",
-  },
-  detailValue: { fontSize: 13, color: "#ffffff", fontWeight: "500" },
-  daysMeta: { marginTop: 8, fontSize: 11, color: "#6b7280" },
-  cardFooter: {
-    alignItems: "flex-end",
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-  },
-  arrowButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(99,102,241,0.12)",
+    borderRadius: 16,
+    backgroundColor: LIGHT_GRAY,
     borderWidth: 1,
-    borderColor: "rgba(99,102,241,0.25)",
+    borderColor: BORDER,
+  },
+  filterChipActive: {
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderColor: 'rgba(16, 185, 129, 0.35)',
+  },
+  filterChipText: { fontSize: 13, fontWeight: '600', color: GREY },
+  filterChipTextActive: { color: GREEN },
+  spinner: { paddingVertical: 32 },
+  emptyBox: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
   },
   skeletonCard: {
     backgroundColor: "#13131f",

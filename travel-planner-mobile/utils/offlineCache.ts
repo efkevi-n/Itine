@@ -27,6 +27,18 @@ export async function cacheTrip(tripId: string, data: Record<string, unknown>): 
   }
 }
 
+export async function removeCachedTrip(tripId: string): Promise<void> {
+  try {
+    await AsyncStorage.multiRemove([
+      tripKey(tripId),
+      itineraryKey(tripId),
+      tripPassKey(tripId),
+    ]);
+  } catch {
+    // ignore
+  }
+}
+
 export async function getCachedTrip(tripId: string): Promise<CachedTrip | null> {
   try {
     const raw = await AsyncStorage.getItem(tripKey(tripId));

@@ -1,4 +1,5 @@
 import type { TripDetailView, BookingDetailView } from '@/types/trip';
+import { normalizeTripStatus } from '@/utils/tripStatus';
 
 function parseNum(v: unknown): number {
   if (typeof v === 'number' && !isNaN(v)) return v;
@@ -13,7 +14,7 @@ export function mapTripToDetailView(raw: Record<string, unknown>): TripDetailVie
     endDate: String(raw.endDate ?? raw.end_date ?? ''),
     totalBudget: parseNum(raw.totalBudget ?? raw.total_budget),
     currency: String(raw.currency ?? 'USD'),
-    status: String(raw.status ?? 'PENDING').toUpperCase(),
+    status: normalizeTripStatus(raw.status ?? raw.tripStatus ?? raw.state),
   };
 }
 

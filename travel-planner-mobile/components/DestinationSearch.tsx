@@ -21,6 +21,7 @@ interface DestinationSearchProps {
   value: string;
   onSelect: (city: string, country: string) => void;
   editable?: boolean;
+  variant?: 'default' | 'light';
 }
 
 export function DestinationSearch({
@@ -28,7 +29,9 @@ export function DestinationSearch({
   value,
   onSelect,
   editable = true,
+  variant = 'default',
 }: DestinationSearchProps) {
+  const isLight = variant === 'light';
   const [input, setInput] = useState(value);
   const [suggestions, setSuggestions] = useState<DestinationSuggestion[]>([]);
   const [recent, setRecent] = useState<{ city: string; country: string }[]>([]);
@@ -87,12 +90,12 @@ export function DestinationSearch({
 
   return (
     <View style={styles.wrapper}>
-      <View style={styles.inputRow}>
-        <Text style={styles.searchIcon}>{SEARCH_ICON}</Text>
+      <View style={[styles.inputRow, isLight && styles.inputRowLight]}>
+        {!isLight ? <Text style={styles.searchIcon}>{SEARCH_ICON}</Text> : null}
         <TextInput
-          style={styles.input}
+          style={[styles.input, isLight && styles.inputLight]}
           placeholder={placeholder}
-          placeholderTextColor={theme.colors.subtext}
+          placeholderTextColor={isLight ? '#9CA3AF' : theme.colors.subtext}
           value={input}
           onChangeText={setInput}
           onFocus={() => setShowList(true)}
@@ -101,21 +104,21 @@ export function DestinationSearch({
         {loading ? (
           <ActivityIndicator
             size="small"
-            color={theme.colors.primary}
+            color={isLight ? '#10B981' : theme.colors.primary}
             style={styles.loader}
           />
         ) : null}
       </View>
       {showRecent ? (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent</Text>
+        <View style={[styles.section, isLight && styles.sectionLight]}>
+          <Text style={[styles.sectionTitle, isLight && styles.sectionTitleLight]}>Recent</Text>
           {recent.slice(0, MAX_RECENT_SEARCHES).map((r, i) => (
             <TouchableOpacity
               key={`${r.city}-${r.country}-${i}`}
-              style={styles.suggestionRow}
+              style={[styles.suggestionRow, isLight && styles.suggestionRowLight]}
               onPress={() => handleSelect(r.city, r.country)}
             >
-              <Text style={styles.suggestionText}>
+              <Text style={[styles.suggestionText, isLight && styles.suggestionTextLight]}>
                 {r.city}, {r.country}
               </Text>
             </TouchableOpacity>
@@ -123,16 +126,16 @@ export function DestinationSearch({
         </View>
       ) : null}
       {showPopular ? (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Popular</Text>
+        <View style={[styles.section, isLight && styles.sectionLight]}>
+          <Text style={[styles.sectionTitle, isLight && styles.sectionTitleLight]}>Popular</Text>
           {POPULAR_DESTINATIONS.map((d, i) => (
             <TouchableOpacity
               key={`${d.city}-${d.country}-${i}`}
-              style={styles.suggestionRow}
+              style={[styles.suggestionRow, isLight && styles.suggestionRowLight]}
               onPress={() => handleSelect(d.city, d.country)}
             >
               <Text style={styles.suggestionFlag}>{d.flag}</Text>
-              <Text style={styles.suggestionText}>
+              <Text style={[styles.suggestionText, isLight && styles.suggestionTextLight]}>
                 {d.city}, {d.country}
               </Text>
             </TouchableOpacity>
@@ -140,15 +143,17 @@ export function DestinationSearch({
         </View>
       ) : null}
       {showAutocomplete ? (
-        <View style={styles.section}>
+        <View style={[styles.section, isLight && styles.sectionLight]}>
           {suggestions.map((item) => (
             <TouchableOpacity
               key={`${item.city}-${item.country}`}
-              style={styles.suggestionRow}
+              style={[styles.suggestionRow, isLight && styles.suggestionRowLight]}
               onPress={() => handleSelect(item.city, item.country)}
             >
               <Text style={styles.suggestionFlag}>{item.flag}</Text>
-              <Text style={styles.suggestionText}>{item.city}, {item.country}</Text>
+              <Text style={[styles.suggestionText, isLight && styles.suggestionTextLight]}>
+                {item.city}, {item.country}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -196,4 +201,28 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     flex: 1,
   },
+  inputRowLight: {
+    backgroundColor: 'rgba(243, 244, 246, 0.5)',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+  },
+  inputLight: { fontSize: 14, color: '#1F2937' },
+  sectionLight: {
+    marginTop: 8,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    padding: 8,
+    overflow: 'hidden',
+  },
+  sectionTitleLight: { fontSize: 12, color: '#6B7280', fontWeight: '600' },
+  suggestionRowLight: {
+    backgroundColor: 'transparent',
+    borderRadius: 12,
+    marginBottom: 0,
+  },
+  suggestionTextLight: { fontSize: 14, fontWeight: '600', color: '#1F2937' },
 });
