@@ -154,6 +154,25 @@ export function getTransportGuide(destination: string): TransportGuide {
   );
 }
 
+export type HomeTripFilter = 'all' | 'upcoming' | 'active' | 'completed';
+
+export function filterTripsByTab(
+  list: TripCardData[],
+  tab: HomeTripFilter,
+): TripCardData[] {
+  switch (tab) {
+    case 'active':
+      return list.filter((t) => t.status === 'ACTIVE');
+    case 'completed':
+      return list.filter((t) => t.status === 'COMPLETED');
+    case 'upcoming':
+      return list.filter((t) => t.status === 'PENDING' || t.status === 'CONFIRMED');
+    case 'all':
+    default:
+      return list;
+  }
+}
+
 export function getUpcomingTrips(trips: TripCardData[]): TripCardData[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);

@@ -528,6 +528,7 @@ export default function ItineraryReviewScreen() {
       >
         <OfflineBanner visible={!isOnline} />
 
+        <View style={styles.topBar}>
           <TouchableOpacity onPress={async () => {
             await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             router.back();

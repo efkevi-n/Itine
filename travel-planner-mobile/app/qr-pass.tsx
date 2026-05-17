@@ -7,6 +7,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Animated,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
@@ -389,17 +390,28 @@ export default function QRPassScreen() {
           <Text style={styles.subtitle}>Show this at check-in points</Text>
           <View style={styles.divider} />
 
-            <View style={styles.activePassBadge}>
-              <View style={styles.activeDot} />
-              <Text style={styles.activePassText}>Active Pass</Text>
+          <View style={styles.passCard}>
+            <View style={styles.passTop}>
+              <View style={styles.passTopGlow} />
+              <Text style={styles.passTitle}>{tripTitle}</Text>
+              <Text style={styles.passSubtitle}>{datesFormatted}</Text>
+              <View style={styles.qrWrap}>
+                <View style={styles.qrFrame}>
+                  {qrPayload ? (
+                    <QRCode value={qrPayload} size={180} color="#111827" backgroundColor="#fff" />
+                  ) : (
+                    <ActivityIndicator size="large" color={GREEN} />
+                  )}
+                </View>
+              </View>
+              <View style={styles.activePassBadge}>
+                <View style={styles.activeDot} />
+                <Text style={styles.activePassText}>Active Pass</Text>
+              </View>
+              {isOnline && !isLocked ? (
+                <Text style={styles.refreshHint}>Refreshes in {countdown}s</Text>
+              ) : null}
             </View>
-
-            {isOnline && !isLocked ? (
-              <Text style={styles.refreshHint}>
-                Refreshes in {countdown}s
-              </Text>
-            ) : null}
-          </View>
 
           <View style={styles.ticketDivider}>
             <View style={styles.ticketNotchLeft} />
@@ -437,7 +449,8 @@ export default function QRPassScreen() {
 
             <Text style={styles.scanHint}>Scan this QR code at any partnered service.</Text>
           </View>
-        </View>
+          </View>
+        </Animated.View>
 
         <View style={styles.quickActions}>
           <TouchableOpacity style={[styles.actionCard, CARD_SHADOW]} onPress={handleSaveOffline} activeOpacity={0.88}>
