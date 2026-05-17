@@ -87,7 +87,12 @@ export default function TripDetailScreen() {
   }, [resolvedId, loadData]);
 
   const handleCancel = useCallback(() => {
-    if (!resolvedId) return;
+    if (!resolvedId || cancelling) return;
+    if (!isOnline) {
+      Alert.alert('Offline', 'Reconnect to the internet before cancelling this trip.');
+      return;
+    }
+
     Alert.alert(
       'Cancel Trip',
       'Are you sure you want to cancel this trip? This cannot be undone.',
@@ -99,11 +104,7 @@ export default function TripDetailScreen() {
           onPress: async () => {
             setCancelling(true);
             try {
-              if (trip?.status?.toUpperCase() === 'PENDING') {
-                await tripsApi.delete(resolvedId);
-              } else {
-                await tripsApi.update(resolvedId, { status: 'CANCELLED' });
-              }
+              await tripsApi.update(resolvedId, { status: 'CANCELLED' });
               router.replace('/(tabs)/trips');
             } catch {
               setCancelling(false);
@@ -113,7 +114,7 @@ export default function TripDetailScreen() {
         },
       ]
     );
-  }, [resolvedId, router, trip?.status]);
+  }, [cancelling, isOnline, resolvedId, router]);
 
   const handleShare = useCallback(async () => {
     if (!trip || !resolvedId) return;
