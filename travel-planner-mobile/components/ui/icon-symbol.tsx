@@ -18,6 +18,7 @@ const MAPPING = {
   'paperplane.fill': 'send',
   'person.fill': 'person',
   'map.fill': 'map',
+  'briefcase.fill': 'card-travel',
   'bell.fill': 'notifications',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
