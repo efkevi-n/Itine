@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useScreenInsets } from '@/hooks/useScreenInsets';
 import { itineraryApi } from '@/api/itinerary';
 import { getErrorMessage } from '@/utils/errorHandler';
 import { tripsApi } from '@/api/trips';
@@ -33,7 +33,7 @@ function parseBudget(trip: Record<string, unknown>): number {
 
 export default function BudgetBreakdownScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { top, stackScrollBottomCompact: scrollBottom } = useScreenInsets();
   const { tripId } = useLocalSearchParams<{ tripId?: string }>();
   const [data, setData] = useState<BudgetBreakdownView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,7 +79,7 @@ export default function BudgetBreakdownScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.screen, styles.centered]}>
+      <View style={[styles.screen, styles.centered, { paddingTop: top }]}>
         <ActivityIndicator size="large" color={GREEN} />
         <Text style={styles.loadingText}>Loading budget...</Text>
       </View>
@@ -88,7 +88,7 @@ export default function BudgetBreakdownScreen() {
 
   if (error && !data) {
     return (
-      <View style={[styles.screen, styles.centered, { paddingTop: insets.top }]}>
+      <View style={[styles.screen, styles.centered, { paddingTop: top }]}>
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={loadData} activeOpacity={0.9}>
           <Text style={styles.retryBtnText}>Retry</Text>
@@ -104,7 +104,7 @@ export default function BudgetBreakdownScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: top }]}>
         <TouchableOpacity style={styles.headerBtn} onPress={() => router.back()} activeOpacity={0.85}>
           <Feather name="chevron-left" size={20} color={TEXT} />
         </TouchableOpacity>
@@ -114,7 +114,7 @@ export default function BudgetBreakdownScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 32 + insets.bottom }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollBottom }]}
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.subtitle}>Cost allocation by category</Text>

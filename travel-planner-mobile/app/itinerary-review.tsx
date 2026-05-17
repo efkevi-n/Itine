@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,35 +6,36 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-} from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { tripsApi } from '@/api/trips';
-import { itineraryApi } from '@/api/itinerary';
-import { formatTripDateRange } from '@/utils/dateFormat';
-import { scheduleTripReminder } from '@/utils/notifications';
-import { saveNotification } from '@/utils/notificationStore';
-import type { AppNotification } from '@/types/notification';
-import { OfflineBanner } from '@/components/OfflineBanner';
-import { useConnectivity } from '@/hooks/useConnectivity';
-import { cacheItinerary, getCachedItinerary } from '@/utils/offlineCache';
-import { showToast } from '@/utils/toastStore';
-import { getErrorMessage } from '@/utils/errorHandler';
-import { SUCCESS_MESSAGES } from '@/constants/errors';
-import { isBookedTripStatus } from '@/utils/tripStatus';
-import { TripCoverImage } from '@/components/TripCoverImage';
+} from "react-native";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { useScreenInsets } from "@/hooks/useScreenInsets";
+import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { tripsApi } from "@/api/trips";
+import { itineraryApi } from "@/api/itinerary";
+import { formatTripDateRange } from "@/utils/dateFormat";
+import { scheduleTripReminder } from "@/utils/notifications";
+import { saveNotification } from "@/utils/notificationStore";
+import type { AppNotification } from "@/types/notification";
+import { OfflineBanner } from "@/components/OfflineBanner";
+import { useConnectivity } from "@/hooks/useConnectivity";
+import { cacheItinerary, getCachedItinerary } from "@/utils/offlineCache";
+import { showToast } from "@/utils/toastStore";
+import { getErrorMessage } from "@/utils/errorHandler";
+import { SUCCESS_MESSAGES } from "@/constants/errors";
+import { isBookedTripStatus } from "@/utils/tripStatus";
+import { TripCoverImage } from "@/components/TripCoverImage";
 
-const BG = '#F8F8F6';
-const TEXT = '#1F2937';
-const GREEN = '#10B981';
-const GREY = '#6B7280';
-const LIGHT_GRAY = '#F3F4F6';
+const BG = "#F8F8F6";
+const TEXT = "#1F2937";
+const GREEN = "#10B981";
+const GREY = "#6B7280";
+const LIGHT_GRAY = "#F3F4F6";
 
-const CHART_COLORS = ['#10B981', '#34D399', '#6EE7B7', '#A7F3D0'];
+const CHART_COLORS = ["#10B981", "#34D399", "#6EE7B7", "#A7F3D0"];
 
 const CARD_SHADOW = {
-  shadowColor: '#000',
+  shadowColor: "#000",
   shadowOffset: { width: 0, height: 4 },
   shadowOpacity: 0.05,
   shadowRadius: 10,
@@ -86,77 +87,120 @@ interface DayLineItem {
 }
 
 const BUDGET_COLORS = {
-  flights: { label: 'Flights', displayLabel: 'Flights', color: CHART_COLORS[0], emoji: '✈️', icon: 'navigation' },
-  accommodation: { label: 'Accommodation', displayLabel: 'Hotel', color: CHART_COLORS[1], emoji: '🏨', icon: 'home' },
-  activities: { label: 'Activities', displayLabel: 'Food/Act', color: CHART_COLORS[2], emoji: '🎭', icon: 'tag' },
-  transport: { label: 'Transport', displayLabel: 'Transport', color: CHART_COLORS[3], emoji: '🚗', icon: 'truck' },
+  flights: {
+    label: "Flights",
+    displayLabel: "Flights",
+    color: CHART_COLORS[0],
+    emoji: "✈️",
+    icon: "navigation",
+  },
+  accommodation: {
+    label: "Accommodation",
+    displayLabel: "Hotel",
+    color: CHART_COLORS[1],
+    emoji: "🏨",
+    icon: "home",
+  },
+  activities: {
+    label: "Activities",
+    displayLabel: "Food/Act",
+    color: CHART_COLORS[2],
+    emoji: "🎭",
+    icon: "tag",
+  },
+  transport: {
+    label: "Transport",
+    displayLabel: "Transport",
+    color: CHART_COLORS[3],
+    emoji: "🚗",
+    icon: "truck",
+  },
 };
 
 function parseNum(v: unknown): number {
-  if (typeof v === 'number' && !isNaN(v)) return v;
-  if (typeof v === 'string') return parseFloat(v) || 0;
+  if (typeof v === "number" && !isNaN(v)) return v;
+  if (typeof v === "string") return parseFloat(v) || 0;
   return 0;
 }
 
 function formatMoney(amount: number, currency: string): string {
   const sym =
-    currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : `${currency} `;
+    currency === "USD"
+      ? "$"
+      : currency === "EUR"
+      ? "€"
+      : currency === "GBP"
+      ? "£"
+      : `${currency} `;
   return `${sym}${Math.round(amount).toLocaleString()}`;
 }
 
 function getDayDateLabel(startDate: string, dayIndex: number): string {
   const start = new Date(startDate);
-  if (Number.isNaN(start.getTime())) return '';
+  if (Number.isNaN(start.getTime())) return "";
   const d = new Date(start);
   d.setDate(d.getDate() + dayIndex);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function normalizeDay(raw: Record<string, unknown>, index: number): DayItem {
   const dayNum = index + 1;
   const flight = raw.flight as Record<string, unknown> | null | undefined;
-  const hotel = (raw.hotel ?? raw.accommodation) as Record<string, unknown> | undefined;
+  const hotel = (raw.hotel ?? raw.accommodation) as
+    | Record<string, unknown>
+    | undefined;
   const transport = raw.transport as Record<string, unknown> | undefined;
   const activitiesRaw = (raw.activities ?? []) as unknown[];
 
   const flightInfo =
     flight &&
-    [flight.airline, flight.departure, flight.arrival, flight.info].filter(Boolean).join(' — ');
+    [flight.airline, flight.departure, flight.arrival, flight.info]
+      .filter(Boolean)
+      .join(" — ");
   const flightCost =
     flight && (flight.price != null || flight.cost != null)
       ? `$${parseNum(flight.price ?? flight.cost)}`
-      : '$0';
+      : "$0";
 
-  const hotelName = String(hotel?.['name'] ?? hotel?.['hotelName'] ?? '');
-  const hotelType = String(hotel?.['type'] ?? hotel?.['roomType'] ?? '');
-  const hotelCostVal = hotel?.['cost'] ?? hotel?.['pricePerNight'];
-  const hotelCost = hotelCostVal != null
-    ? `${typeof hotelCostVal === 'string' ? hotelCostVal : `$${parseNum(hotelCostVal)}`}`
-    : '—';
+  const hotelName = String(hotel?.["name"] ?? hotel?.["hotelName"] ?? "");
+  const hotelType = String(hotel?.["type"] ?? hotel?.["roomType"] ?? "");
+  const hotelCostVal = hotel?.["cost"] ?? hotel?.["pricePerNight"];
+  const hotelCost =
+    hotelCostVal != null
+      ? `${
+          typeof hotelCostVal === "string"
+            ? hotelCostVal
+            : `$${parseNum(hotelCostVal)}`
+        }`
+      : "—";
 
   const transportInfo =
     transport &&
-    [transport.type, transport.from, transport.to, transport.info].filter(Boolean).join(' ');
+    [transport.type, transport.from, transport.to, transport.info]
+      .filter(Boolean)
+      .join(" ");
   const transportCost =
     transport && (transport.price != null || transport.cost != null)
       ? `$${parseNum(transport.price ?? transport.cost)}`
-      : '$0';
+      : "$0";
 
   const activities: ActivityItem[] = activitiesRaw.map((a: unknown) => {
     const x = a as Record<string, unknown>;
     return {
-      name: String(x.name ?? ''),
-      cost: x.cost != null ? `$${parseNum(x.cost)}` : '—',
+      name: String(x.name ?? ""),
+      cost: x.cost != null ? `$${parseNum(x.cost)}` : "—",
       duration: x.duration != null ? String(x.duration) : undefined,
     };
   });
 
-  let dayTotal = parseNum(flight?.price ?? flight?.cost) + parseNum(transport?.price ?? transport?.cost);
+  let dayTotal =
+    parseNum(flight?.price ?? flight?.cost) +
+    parseNum(transport?.price ?? transport?.cost);
   activities.forEach((a) => {
-    const m = String(a.cost).replace(/[^0-9.]/g, '');
+    const m = String(a.cost).replace(/[^0-9.]/g, "");
     if (m) dayTotal += parseFloat(m) || 0;
   });
-  const hotelPrice = hotel?.['pricePerNight'] ?? hotel?.['cost'];
+  const hotelPrice = hotel?.["pricePerNight"] ?? hotel?.["cost"];
   if (hotelPrice != null) dayTotal += parseNum(hotelPrice);
 
   return {
@@ -164,10 +208,10 @@ function normalizeDay(raw: Record<string, unknown>, index: number): DayItem {
     title: String(raw.title ?? `Day ${dayNum}`),
     flight:
       flight && (flightInfo || parseNum(flight.price ?? flight.cost) > 0)
-        ? { info: flightInfo || 'Flight', cost: flightCost }
+        ? { info: flightInfo || "Flight", cost: flightCost }
         : null,
-    hotel: { name: hotelName || '—', type: hotelType, cost: hotelCost },
-    transport: { info: transportInfo || '—', cost: transportCost },
+    hotel: { name: hotelName || "—", type: hotelType, cost: hotelCost },
+    transport: { info: transportInfo || "—", cost: transportCost },
     activities,
     dayTotal,
   };
@@ -180,16 +224,16 @@ function buildBudgetFromDays(days: DayItem[]): BudgetItem[] {
     transport = 0;
   days.forEach((d) => {
     if (d.flight) {
-      const m = d.flight.cost.replace(/[^0-9.]/g, '');
+      const m = d.flight.cost.replace(/[^0-9.]/g, "");
       if (m) flights += parseFloat(m);
     }
     const hotelMatch = d.hotel.cost.match(/[\d.]+/);
     if (hotelMatch) accommodation += parseFloat(hotelMatch[0]);
     d.activities.forEach((a) => {
-      const m = a.cost.replace(/[^0-9.]/g, '');
+      const m = a.cost.replace(/[^0-9.]/g, "");
       if (m) activities += parseFloat(m);
     });
-    const transMatch = d.transport.cost.replace(/[^0-9.]/g, '');
+    const transMatch = d.transport.cost.replace(/[^0-9.]/g, "");
     if (transMatch) transport += parseFloat(transMatch);
   });
   return [
@@ -204,25 +248,25 @@ function getDayLineItems(day: DayItem): DayLineItem[] {
   const items: DayLineItem[] = [];
   if (day.flight) {
     items.push({
-      icon: 'navigation',
-      tag: 'Flight • 10:00 AM',
+      icon: "navigation",
+      tag: "Flight • 10:00 AM",
       title: day.flight.info,
       cost: day.flight.cost,
     });
   }
-  if (day.hotel.name && day.hotel.name !== '—') {
+  if (day.hotel.name && day.hotel.name !== "—") {
     items.push({
-      icon: 'home',
-      tag: 'Hotel • 3:00 PM',
+      icon: "home",
+      tag: "Hotel • 3:00 PM",
       title: day.hotel.name,
       cost: day.hotel.cost,
       subtitle: day.hotel.type || undefined,
     });
   }
-  if (day.transport.info && day.transport.info !== '—') {
+  if (day.transport.info && day.transport.info !== "—") {
     items.push({
-      icon: 'truck',
-      tag: 'Transport • 2:00 PM',
+      icon: "truck",
+      tag: "Transport • 2:00 PM",
       title: day.transport.info,
       cost: day.transport.cost,
     });
@@ -231,8 +275,8 @@ function getDayLineItems(day: DayItem): DayLineItem[] {
     if (!a.name) return;
     const isFood = /food|dining|meal|restaurant|ramen|cafe/i.test(a.name);
     items.push({
-      icon: isFood ? 'coffee' : 'tag',
-      tag: `${isFood ? 'Dining' : 'Activity'} • 10:00 AM`,
+      icon: isFood ? "coffee" : "tag",
+      tag: `${isFood ? "Dining" : "Activity"} • 10:00 AM`,
       title: a.name,
       cost: a.cost,
       subtitle: a.duration,
@@ -243,7 +287,7 @@ function getDayLineItems(day: DayItem): DayLineItem[] {
 
 export default function ItineraryReviewScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { insets, top, stackScrollBottom, contentPaddingHorizontal } = useScreenInsets();
   const { isOnline } = useConnectivity();
   const { tripId } = useLocalSearchParams<{ tripId?: string }>();
   const [trip, setTrip] = useState<TripSummary | null>(null);
@@ -258,7 +302,7 @@ export default function ItineraryReviewScreen() {
 
   const loadData = useCallback(async () => {
     if (!tripId) {
-      router.replace('/(tabs)');
+      router.replace("/(tabs)");
       return;
     }
     setError(null);
@@ -266,30 +310,38 @@ export default function ItineraryReviewScreen() {
     setIsGenerating(false);
     try {
       const tripRes = await tripsApi.getById(tripId);
-      const tripData = tripRes.data ?? (tripRes as { data?: Record<string, unknown> }).data;
-      if (!tripData || typeof tripData !== 'object') {
-        setError('Failed to load trip.');
+      const tripData =
+        tripRes.data ?? (tripRes as { data?: Record<string, unknown> }).data;
+      if (!tripData || typeof tripData !== "object") {
+        setError("Failed to load trip.");
         setLoading(false);
         return;
       }
       setTrip({
-        destination: String(tripData.destination ?? ''),
-        startDate: String(tripData.startDate ?? tripData.start_date ?? ''),
-        endDate: String(tripData.endDate ?? tripData.end_date ?? ''),
+        destination: String(tripData.destination ?? ""),
+        startDate: String(tripData.startDate ?? tripData.start_date ?? ""),
+        endDate: String(tripData.endDate ?? tripData.end_date ?? ""),
         totalBudget: parseNum(tripData.totalBudget ?? tripData.total_budget),
-        currency: String(tripData.currency ?? 'USD'),
-        status: String(tripData.status ?? 'PENDING').toUpperCase(),
+        currency: String(tripData.currency ?? "USD"),
+        status: String(tripData.status ?? "PENDING").toUpperCase(),
       });
 
       const itineraryRes = await itineraryApi.getItinerary(tripId);
-      const itineraryData = itineraryRes.data ?? (itineraryRes as { data?: unknown }).data;
-      const rawDays = Array.isArray((itineraryData as Record<string, unknown>)?.days)
+      const itineraryData =
+        itineraryRes.data ?? (itineraryRes as { data?: unknown }).data;
+      const rawDays = Array.isArray(
+        (itineraryData as Record<string, unknown>)?.days,
+      )
         ? (itineraryData as { days: Record<string, unknown>[] }).days
         : Array.isArray(itineraryData)
-          ? itineraryData
-          : [];
-      const status = (itineraryData as Record<string, unknown>)?.status as string | undefined;
-      const generating = String(status ?? '').toLowerCase() === 'generating' || rawDays.length === 0;
+        ? itineraryData
+        : [];
+      const status = (itineraryData as Record<string, unknown>)?.status as
+        | string
+        | undefined;
+      const generating =
+        String(status ?? "").toLowerCase() === "generating" ||
+        rawDays.length === 0;
 
       if (generating) {
         setIsGenerating(true);
@@ -297,13 +349,15 @@ export default function ItineraryReviewScreen() {
         setBudgetBreakdown([]);
       } else {
         setIsGenerating(false);
-        const days = rawDays.map((d, i) => normalizeDay(d as Record<string, unknown>, i));
+        const days = rawDays.map((d, i) =>
+          normalizeDay(d as Record<string, unknown>, i),
+        );
         setItinerary(days);
         const breakdown =
           (itineraryData as Record<string, unknown>)?.budgetBreakdown ??
           (itineraryData as Record<string, unknown>)?.budget_breakdown;
         if (Array.isArray(breakdown) && breakdown.length > 0) {
-          const map: Record<string, (typeof BUDGET_COLORS)['flights']> = {
+          const map: Record<string, (typeof BUDGET_COLORS)["flights"]> = {
             flights: BUDGET_COLORS.flights,
             accommodation: BUDGET_COLORS.accommodation,
             activities: BUDGET_COLORS.activities,
@@ -312,15 +366,15 @@ export default function ItineraryReviewScreen() {
           const fromApi = breakdown
             .map((b: unknown, i: number) => {
               const x = b as Record<string, unknown>;
-              const key = String(x.category ?? x.type ?? '').toLowerCase();
+              const key = String(x.category ?? x.type ?? "").toLowerCase();
               const def =
                 map[key] ??
                 ({
                   label: String(x.label ?? key),
                   displayLabel: String(x.label ?? key),
                   color: CHART_COLORS[i % CHART_COLORS.length],
-                  emoji: '📦',
-                  icon: 'package',
+                  emoji: "📦",
+                  icon: "package",
                 } as const);
               return {
                 label: def.label,
@@ -332,7 +386,9 @@ export default function ItineraryReviewScreen() {
               } as BudgetItem;
             })
             .filter((b) => b.amount > 0);
-          setBudgetBreakdown(fromApi.length > 0 ? fromApi : buildBudgetFromDays(days));
+          setBudgetBreakdown(
+            fromApi.length > 0 ? fromApi : buildBudgetFromDays(days),
+          );
         } else {
           setBudgetBreakdown(buildBudgetFromDays(days));
         }
@@ -348,7 +404,10 @@ export default function ItineraryReviewScreen() {
         }
       }
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string } }; message?: string };
+      const err = e as {
+        response?: { data?: { message?: string } };
+        message?: string;
+      };
       if (!isOnline && tripId) {
         const cached = await getCachedItinerary(tripId);
         const data = cached?.data as
@@ -361,20 +420,26 @@ export default function ItineraryReviewScreen() {
           | undefined;
         if (data?.trip) {
           setTrip({
-            destination: String(data.trip.destination ?? ''),
-            startDate: String(data.trip.startDate ?? data.trip.start_date ?? ''),
-            endDate: String(data.trip.endDate ?? data.trip.end_date ?? ''),
-            totalBudget: parseNum(data.trip.totalBudget ?? data.trip.total_budget),
-            currency: String(data.trip.currency ?? 'USD'),
-            status: String(data.trip.status ?? 'PENDING').toUpperCase(),
+            destination: String(data.trip.destination ?? ""),
+            startDate: String(
+              data.trip.startDate ?? data.trip.start_date ?? "",
+            ),
+            endDate: String(data.trip.endDate ?? data.trip.end_date ?? ""),
+            totalBudget: parseNum(
+              data.trip.totalBudget ?? data.trip.total_budget,
+            ),
+            currency: String(data.trip.currency ?? "USD"),
+            status: String(data.trip.status ?? "PENDING").toUpperCase(),
           });
           const rawDays = Array.isArray(data.days) ? data.days : [];
           if (rawDays.length > 0) {
-            const days = rawDays.map((d, i) => normalizeDay(d as Record<string, unknown>, i));
+            const days = rawDays.map((d, i) =>
+              normalizeDay(d as Record<string, unknown>, i),
+            );
             setItinerary(days);
             const breakdown = data.budgetBreakdown;
             if (Array.isArray(breakdown) && breakdown.length > 0) {
-              const map: Record<string, (typeof BUDGET_COLORS)['flights']> = {
+              const map: Record<string, (typeof BUDGET_COLORS)["flights"]> = {
                 flights: BUDGET_COLORS.flights,
                 accommodation: BUDGET_COLORS.accommodation,
                 activities: BUDGET_COLORS.activities,
@@ -383,15 +448,15 @@ export default function ItineraryReviewScreen() {
               setBudgetBreakdown(
                 breakdown.map((b: unknown, i: number) => {
                   const x = b as Record<string, unknown>;
-                  const key = String(x.category ?? x.type ?? '').toLowerCase();
+                  const key = String(x.category ?? x.type ?? "").toLowerCase();
                   const def =
                     map[key] ??
                     ({
                       label: String(x.label ?? key),
                       displayLabel: String(x.label ?? key),
                       color: CHART_COLORS[i % CHART_COLORS.length],
-                      emoji: '📦',
-                      icon: 'package',
+                      emoji: "📦",
+                      icon: "package",
                     } as const);
                   return {
                     label: def.label,
@@ -407,7 +472,7 @@ export default function ItineraryReviewScreen() {
           }
           setError(null);
           setIsGenerating(false);
-        } else setError('Offline. No cached itinerary.');
+        } else setError("Offline. No cached itinerary.");
       } else {
         setError(getErrorMessage(err));
         setItinerary([]);
@@ -433,7 +498,7 @@ export default function ItineraryReviewScreen() {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setConfirmError(null);
     if (!tripId) {
-      router.replace('/(tabs)');
+      router.replace("/(tabs)");
       return;
     }
     setConfirmLoading(true);
@@ -448,18 +513,18 @@ export default function ItineraryReviewScreen() {
       }
       const notif: AppNotification = {
         id: `trip_confirmed_${tripId}_${Date.now()}`,
-        type: 'trip_confirmed',
-        title: 'Trip confirmed',
+        type: "trip_confirmed",
+        title: "Trip confirmed",
         body: trip?.destination
           ? `Your trip to ${trip.destination} is confirmed. Your QR Pass is ready.`
-          : 'Your trip is confirmed.',
+          : "Your trip is confirmed.",
         tripId: String(tripId),
         isRead: false,
         createdAt: new Date().toISOString(),
       };
       saveNotification(notif).catch(() => {});
-      showToast('success', SUCCESS_MESSAGES.TRIP_CONFIRMED);
-      router.replace({ pathname: '/qr-pass', params: { tripId } });
+      showToast("success", SUCCESS_MESSAGES.TRIP_CONFIRMED);
+      router.replace({ pathname: "/qr-pass", params: { tripId } });
     } catch (e: unknown) {
       setConfirmError(getErrorMessage(e));
     } finally {
@@ -475,21 +540,22 @@ export default function ItineraryReviewScreen() {
       ? Math.max(
           1,
           Math.ceil(
-            (new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) /
+            (new Date(trip.endDate).getTime() -
+              new Date(trip.startDate).getTime()) /
               (1000 * 60 * 60 * 24),
           ) + 1,
         )
       : itinerary.length || 1;
   const offlineDisabled = !isOnline;
-  const tripStatus = trip?.status?.toUpperCase() ?? '';
+  const tripStatus = trip?.status?.toUpperCase() ?? "";
   const isBooked = isBookedTripStatus(tripStatus);
-  const isPending = tripStatus === 'PENDING';
+  const isPending = tripStatus === "PENDING";
 
   if (!tripId) return null;
 
   if (loading && !trip) {
     return (
-      <View style={[styles.screen, styles.centered]}>
+      <View style={[styles.screen, styles.centered, { paddingTop: top }]}>
         <ActivityIndicator size="large" color={GREEN} />
         <Text style={styles.loadingText}>Loading itinerary...</Text>
       </View>
@@ -498,7 +564,7 @@ export default function ItineraryReviewScreen() {
 
   if (error && !trip) {
     return (
-      <View style={[styles.screen, styles.centered]}>
+      <View style={[styles.screen, styles.centered, { paddingTop: top }]}>
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={() => loadData()}>
           <Text style={styles.retryBtnText}>Retry</Text>
@@ -509,10 +575,14 @@ export default function ItineraryReviewScreen() {
 
   if (isGenerating) {
     return (
-      <View style={[styles.screen, styles.centered]}>
+      <View style={[styles.screen, styles.centered, { paddingTop: top }]}>
         <ActivityIndicator size="large" color={GREEN} />
-        <Text style={styles.loadingText}>Still generating your itinerary...</Text>
-        <Text style={styles.generatingSubtext}>{"We'll refresh automatically."}</Text>
+        <Text style={styles.loadingText}>
+          Still generating your itinerary...
+        </Text>
+        <Text style={styles.generatingSubtext}>
+          {"We'll refresh automatically."}
+        </Text>
       </View>
     );
   }
@@ -523,31 +593,32 @@ export default function ItineraryReviewScreen() {
     <View style={styles.screen}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 140 + insets.bottom }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: top,
+            paddingBottom: stackScrollBottom,
+          },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <OfflineBanner visible={!isOnline} />
 
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={async () => {
-            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.back();
-          }} style={styles.backButton} activeOpacity={0.7}>
-            <Feather name="chevron-left" size={22} color="#6366f1" />
-            <Text style={styles.backText}>Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.topTitle}>{isBooked ? 'Your Trip' : 'Trip Summary'}</Text>
+          <Text style={styles.topTitle}>
+            {isBooked ? "Your Trip" : "Trip Summary"}
+          </Text>
           {isPending ? (
             <TouchableOpacity
               style={styles.editTopBtn}
-              onPress={() => router.push({ pathname: '/edit-itinerary', params: { tripId } })}
+              onPress={() =>
+                router.push({ pathname: "/edit-itinerary", params: { tripId } })
+              }
               activeOpacity={0.85}
             >
               <Text style={styles.editTopBtnText}>Edit</Text>
             </TouchableOpacity>
-          ) : (
-            <View style={styles.topSpacer} />
-          )}
+          ) : null}
         </View>
 
         <View style={[styles.heroCard, CARD_SHADOW]}>
@@ -571,14 +642,19 @@ export default function ItineraryReviewScreen() {
           </Text>
           <View style={styles.summaryBudgetRow}>
             <Text style={styles.summaryBudgetLabel}>Total Budget:</Text>
-            <Text style={styles.summaryBudgetValue}>{formatMoney(totalBudget, trip.currency)}</Text>
+            <Text style={styles.summaryBudgetValue}>
+              {formatMoney(totalBudget, trip.currency)}
+            </Text>
           </View>
         </View>
 
         {error ? (
           <View style={styles.errorBox}>
             <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity style={styles.retryBtn} onPress={() => loadData()}>
+            <TouchableOpacity
+              style={styles.retryBtn}
+              onPress={() => loadData()}
+            >
               <Text style={styles.retryBtnText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -599,7 +675,10 @@ export default function ItineraryReviewScreen() {
                   style={[
                     styles.budgetSegment,
                     {
-                      flex: totalBudget > 0 ? item.amount / totalBudget : 1 / budgetBreakdown.length,
+                      flex:
+                        totalBudget > 0
+                          ? item.amount / totalBudget
+                          : 1 / budgetBreakdown.length,
                       backgroundColor: item.color,
                     },
                   ]}
@@ -609,9 +688,12 @@ export default function ItineraryReviewScreen() {
             <View style={styles.budgetLegendGrid}>
               {budgetBreakdown.map((item) => (
                 <View key={item.label} style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                  <View
+                    style={[styles.legendDot, { backgroundColor: item.color }]}
+                  />
                   <Text style={styles.legendText}>
-                    {item.displayLabel} ({formatMoney(item.amount, trip.currency)})
+                    {item.displayLabel} (
+                    {formatMoney(item.amount, trip.currency)})
                   </Text>
                 </View>
               ))}
@@ -622,7 +704,9 @@ export default function ItineraryReviewScreen() {
         <View style={styles.daysSection}>
           {itinerary.map((day) => {
             const isExpanded = expandedDay === day.day;
-            const dateLabel = trip.startDate ? getDayDateLabel(trip.startDate, day.day - 1) : '';
+            const dateLabel = trip.startDate
+              ? getDayDateLabel(trip.startDate, day.day - 1)
+              : "";
             const lineItems = getDayLineItems(day);
 
             return (
@@ -640,7 +724,7 @@ export default function ItineraryReviewScreen() {
                       <Text style={styles.dayTitle}>{day.title}</Text>
                       <Text style={styles.dayMeta}>
                         {dateLabel}
-                        {dateLabel ? ' • ' : ''}
+                        {dateLabel ? " • " : ""}
                         {formatMoney(day.dayTotal, trip.currency)}
                       </Text>
                     </View>
@@ -649,7 +733,9 @@ export default function ItineraryReviewScreen() {
                     name="chevron-down"
                     size={14}
                     color={GREY}
-                    style={{ transform: [{ rotate: isExpanded ? '180deg' : '0deg' }] }}
+                    style={{
+                      transform: [{ rotate: isExpanded ? "180deg" : "0deg" }],
+                    }}
                   />
                 </TouchableOpacity>
 
@@ -670,7 +756,9 @@ export default function ItineraryReviewScreen() {
                             <Text style={styles.lineCost}>{item.cost}</Text>
                           </View>
                           {item.subtitle ? (
-                            <Text style={styles.lineSubtitle}>{item.subtitle}</Text>
+                            <Text style={styles.lineSubtitle}>
+                              {item.subtitle}
+                            </Text>
                           ) : null}
                         </View>
                       </View>
@@ -682,13 +770,27 @@ export default function ItineraryReviewScreen() {
           })}
         </View>
 
-        {confirmError ? <Text style={styles.confirmErrorText}>{confirmError}</Text> : null}
+        {confirmError ? (
+          <Text style={styles.confirmErrorText}>{confirmError}</Text>
+        ) : null}
       </ScrollView>
 
-      <View style={[styles.stickyCta, { bottom: 24 + insets.bottom }]}>
+      <View
+        style={[
+          styles.stickyCta,
+          {
+            bottom: insets.bottom + 16,
+            left: contentPaddingHorizontal,
+            right: contentPaddingHorizontal,
+          },
+        ]}
+      >
         {isPending ? (
           <TouchableOpacity
-            style={[styles.confirmBtn, (confirmLoading || offlineDisabled) && styles.btnDisabled]}
+            style={[
+              styles.confirmBtn,
+              (confirmLoading || offlineDisabled) && styles.btnDisabled,
+            ]}
             onPress={handleConfirm}
             disabled={confirmLoading || offlineDisabled}
             activeOpacity={0.92}
@@ -698,14 +800,18 @@ export default function ItineraryReviewScreen() {
             ) : (
               <>
                 <Feather name="maximize" size={16} color="#fff" />
-                <Text style={styles.confirmText}>Confirm & Generate QR Pass</Text>
+                <Text style={styles.confirmText}>
+                  Confirm & Generate QR Pass
+                </Text>
               </>
             )}
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
             style={styles.confirmBtn}
-            onPress={() => router.replace({ pathname: '/trip-detail', params: { tripId } })}
+            onPress={() =>
+              router.replace({ pathname: "/trip-detail", params: { tripId } })
+            }
             activeOpacity={0.92}
           >
             <Text style={styles.confirmText}>Open Trip Hub</Text>
@@ -720,200 +826,204 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: BG },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 24 },
-  centered: { justifyContent: 'center', alignItems: 'center', padding: 24 },
+  centered: { justifyContent: "center", alignItems: "center", padding: 24 },
   loadingText: { color: GREY, marginTop: 12, fontSize: 14 },
   generatingSubtext: { color: GREY, marginTop: 8, fontSize: 14 },
   topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 24,
+    gap: 12,
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...CARD_SHADOW,
-  },
-  topTitle: { fontSize: 18, fontWeight: '700', color: TEXT },
-  topSpacer: { width: 40 },
+  topTitle: { fontSize: 22, fontWeight: "700", color: TEXT, flex: 1 },
   editTopBtn: {
     minWidth: 40,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  editTopBtnText: { fontSize: 13, fontWeight: '700', color: GREEN },
+  editTopBtnText: { fontSize: 13, fontWeight: "700", color: GREEN },
   heroCover: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   heroCard: {
     height: 160,
     borderRadius: 24,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginBottom: 16,
-    position: 'relative',
-    backgroundColor: '#ddd',
+    position: "relative",
+    backgroundColor: "#ddd",
   },
-  heroImage: { width: '100%', height: '100%' },
+  heroImage: { width: "100%", height: "100%" },
   heroGradient: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(17, 24, 39, 0.35)',
+    backgroundColor: "rgba(17, 24, 39, 0.35)",
   },
   heroDestination: {
-    position: 'absolute',
+    position: "absolute",
     left: 20,
     right: 20,
     bottom: 16,
     fontSize: 22,
-    fontWeight: '700',
-    color: '#fff',
+    fontWeight: "700",
+    color: "#fff",
   },
   summaryCard: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 24,
     padding: 20,
     marginBottom: 24,
   },
   summaryTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: 8,
     gap: 12,
   },
-  destination: { fontSize: 24, fontWeight: '700', color: TEXT, flex: 1 },
+  destination: { fontSize: 24, fontWeight: "700", color: TEXT, flex: 1 },
   daysPill: {
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 4,
   },
-  daysPillText: { fontSize: 12, fontWeight: '600', color: GREEN },
+  daysPillText: { fontSize: 12, fontWeight: "600", color: GREEN },
   summaryDates: { fontSize: 14, color: GREY, marginBottom: 16 },
-  summaryBudgetRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  summaryBudgetLabel: { fontSize: 14, fontWeight: '600', color: TEXT },
-  summaryBudgetValue: { fontSize: 14, fontWeight: '700', color: GREEN },
+  summaryBudgetRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  summaryBudgetLabel: { fontSize: 14, fontWeight: "600", color: TEXT },
+  summaryBudgetValue: { fontSize: 14, fontWeight: "700", color: GREEN },
   errorBox: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: "#FEF2F2",
     borderRadius: 16,
     padding: 12,
     marginBottom: 16,
   },
-  errorText: { color: '#EF4444', textAlign: 'center', marginBottom: 8 },
+  errorText: { color: "#EF4444", textAlign: "center", marginBottom: 8 },
   retryBtn: {
-    alignSelf: 'center',
+    alignSelf: "center",
     paddingVertical: 10,
     paddingHorizontal: 24,
     backgroundColor: GREEN,
     borderRadius: 20,
   },
-  retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  retryBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   budgetCard: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 24,
     padding: 20,
     marginBottom: 24,
   },
-  budgetCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
+  budgetCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 16,
+  },
   budgetIconWrap: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  budgetCardTitle: { fontSize: 14, fontWeight: '700', color: TEXT },
+  budgetCardTitle: { fontSize: 14, fontWeight: "700", color: TEXT },
   budgetChart: {
-    flexDirection: 'row',
+    flexDirection: "row",
     height: 80,
     borderRadius: 12,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginBottom: 16,
   },
-  budgetSegment: { height: '100%' },
+  budgetSegment: { height: "100%" },
   budgetLegendGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
   },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 8, width: '47%' },
+  legendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    width: "47%",
+  },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
   legendText: { fontSize: 11, color: GREY, flex: 1 },
   daysSection: { gap: 16, paddingBottom: 16 },
   dayCard: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 24,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   dayHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
-  dayHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  dayHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
   dayNumber: {
     width: 32,
     height: 32,
     borderRadius: 16,
     backgroundColor: LIGHT_GRAY,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  dayNumberText: { fontSize: 14, fontWeight: '700', color: TEXT },
-  dayTitle: { fontSize: 14, fontWeight: '700', color: TEXT },
+  dayNumberText: { fontSize: 14, fontWeight: "700", color: TEXT },
+  dayTitle: { fontSize: 14, fontWeight: "700", color: TEXT },
   dayMeta: { fontSize: 11, color: GREY, marginTop: 2 },
   dayBody: { paddingHorizontal: 20, paddingBottom: 20 },
-  dayDivider: { height: 1, backgroundColor: '#F3F4F6', marginBottom: 16 },
-  lineItem: { flexDirection: 'row', gap: 12, marginBottom: 16 },
+  dayDivider: { height: 1, backgroundColor: "#F3F4F6", marginBottom: 16 },
+  lineItem: { flexDirection: "row", gap: 12, marginBottom: 16 },
   lineIconWrap: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(243, 244, 246, 0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(243, 244, 246, 0.5)",
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 4,
   },
   lineContent: { flex: 1, minWidth: 0 },
   lineTag: {
     fontSize: 9,
-    fontWeight: '600',
+    fontWeight: "600",
     color: GREY,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.4,
     marginBottom: 2,
   },
   lineTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     gap: 8,
   },
-  lineTitle: { fontSize: 13, fontWeight: '600', color: TEXT, flex: 1 },
-  lineCost: { fontSize: 13, fontWeight: '600', color: TEXT },
+  lineTitle: { fontSize: 13, fontWeight: "600", color: TEXT, flex: 1 },
+  lineCost: { fontSize: 13, fontWeight: "600", color: TEXT },
   lineSubtitle: { fontSize: 11, color: GREY, marginTop: 2 },
-  confirmErrorText: { color: '#EF4444', textAlign: 'center', marginBottom: 8 },
+  confirmErrorText: { color: "#EF4444", textAlign: "center", marginBottom: 8 },
   stickyCta: {
-    position: 'absolute',
-    left: 24,
-    right: 24,
+    position: "absolute",
     zIndex: 40,
   },
   confirmBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
     backgroundColor: GREEN,
     borderRadius: 999,
@@ -924,17 +1034,17 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
   },
-  confirmText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  confirmText: { color: "#fff", fontSize: 15, fontWeight: "600" },
   btnDisabled: { opacity: 0.6 },
   secondaryCtaBtn: {
     marginTop: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 14,
     borderRadius: 999,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: '#F3F4F6',
+    borderColor: "#F3F4F6",
   },
-  secondaryCtaText: { fontSize: 15, fontWeight: '600', color: TEXT },
+  secondaryCtaText: { fontSize: 15, fontWeight: "600", color: TEXT },
 });
