@@ -1,3 +1,4 @@
+import { resolveMediaUrl } from '@/api/client';
 import type { ProfileView } from '@/types/user';
 
 export function mapProfileToView(raw: Record<string, unknown>): ProfileView {
@@ -9,4 +10,10 @@ export function mapProfileToView(raw: Record<string, unknown>): ProfileView {
     phone: String(source?.phone ?? source?.phoneNumber ?? ''),
     photoUrl: typeof source?.photoUrl === 'string' ? source.photoUrl : typeof source?.avatarUrl === 'string' ? source.avatarUrl : null,
   };
+}
+
+/** Absolute URL for avatar display (handles avatarUrl + relative API paths). */
+export function getResolvedProfilePhotoUrl(raw: Record<string, unknown>): string {
+  const photoUrl = mapProfileToView(raw).photoUrl;
+  return photoUrl ? resolveMediaUrl(photoUrl) : '';
 }
