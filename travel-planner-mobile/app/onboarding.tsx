@@ -8,312 +8,395 @@ import {
   Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import Svg, { Path } from 'react-native-svg';
+import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { OnboardingDots, OnboardingHeader } from '@/components/auth/AuthStepHeader';
+import { getAccessToken } from '@/utils/auth';
+import { hasSeenOnboarding, setOnboardingSeen } from '@/utils/onboarding';
 
-const { width: windowWidth } = Dimensions.get('window');
+const BG = '#F8F8F6';
+const TEXT = '#111827';
+const GREEN = '#10B981';
+const GREY = '#6B7280';
+const DARK = '#111827';
 
-const H_PADDING = 24;
-const progressTrackWidth = windowWidth - H_PADDING * 2;
+const { width: SCREEN_W } = Dimensions.get('window');
 
-const slides = [
+const SLIDES = [
   {
     id: 1,
-    icon: 'pin' as const,
+    icon: 'map' as const,
     title: 'Plan Your Perfect Trip',
-    subtitle: 'Everything you need for the perfect journey, all in one place.',
+    subtitle: 'AI generates your full itinerary based on your budget and preferences.',
+    extra: null as 'budget' | 'qr' | null,
   },
   {
     id: 2,
-    icon: 'sparkles' as const,
-    title: 'AI Does The Heavy Lifting',
-    subtitle: 'Flights, hotels and activities picked within your budget — automatically.',
+    icon: 'pie-chart' as const,
+    title: 'Stay Within Budget',
+    subtitle: 'Smart budget allocation for flights, hotels and activities.',
+    extra: 'budget' as const,
   },
   {
     id: 3,
-    icon: 'rocket' as const,
-    title: 'Ready to Explore?',
-    subtitle: 'Start planning your dream trip today. Your adventure awaits.',
+    icon: 'grid' as const,
+    title: 'One QR Pass for Everything',
+    subtitle: 'Single QR works at hotel, airport and transport.',
+    extra: 'qr' as const,
   },
 ];
 
-function SlideIcon({ type }: { type: 'pin' | 'sparkles' | 'rocket' }) {
-  if (type === 'pin') {
-    return (
-      <Svg width={56} height={56} viewBox="0 0 24 24">
-        <Path
-          fill="#6366f1"
-          d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"
-        />
-      </Svg>
-    );
-  }
-  if (type === 'sparkles') {
-    return (
-      <Svg width={56} height={56} viewBox="0 0 24 24">
-        <Path
-          fill="#6366f1"
-          d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9z"
-        />
-        <Path
-          fill="#6366f1"
-          d="M19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"
-        />
-        <Path
-          fill="#6366f1"
-          d="M11.5 9.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5z"
-        />
-      </Svg>
-    );
-  }
-  return (
-    <Svg width={56} height={56} viewBox="0 0 24 24">
-      <Path fill="#6366f1" d="M12 2.5L4 14h4.5V22h7v-8H20L12 2.5z" />
-    </Svg>
-  );
-}
-
 export default function OnboardingScreen() {
-  const [currentIndex, setCurrentIndex] = useState(0);
   const router = useRouter();
-
-  const fadeOpacity = useRef(new Animated.Value(1)).current;
-  const progressAnim = useRef(new Animated.Value(1 / slides.length)).current;
-
-  const slide = slides[currentIndex];
-  const slidePill = `${String(currentIndex + 1).padStart(2, '0')} / ${String(slides.length).padStart(2, '0')}`;
+  const insets = useSafeAreaInsets();
+  const [index, setIndex] = useState(0);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    Animated.timing(progressAnim, {
-      toValue: (currentIndex + 1) / slides.length,
-      duration: 450,
-      useNativeDriver: false,
-    }).start();
-  }, [currentIndex]);
+    let cancelled = false;
+    (async () => {
+      if (!(await hasSeenOnboarding())) return;
+      const token = await getAccessToken();
+      if (cancelled) return;
+      router.replace(token ? '/(tabs)' : '/login');
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
-  useEffect(() => {
-    AsyncStorage.removeItem('onboarding_seen');
-  }, []);
-
-  const handleFinish = async () => {
-    await AsyncStorage.setItem('onboarding_seen', 'true');
-    setTimeout(() => {
-      router.replace('/login');
-    }, 100);
-  };
-
-  const fadeInContent = () => {
-    fadeOpacity.setValue(0);
-    Animated.timing(fadeOpacity, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const runSlideTransition = (afterFadeOut: () => void) => {
-    Animated.timing(fadeOpacity, {
-      toValue: 0,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (!finished) return;
-      afterFadeOut();
-      setTimeout(() => {
-        fadeInContent();
-      }, 0);
-    });
-  };
-
-  const handleNext = () => {
-    if (currentIndex < slides.length - 1) {
-      runSlideTransition(() => {
-        setCurrentIndex((i) => i + 1);
-      });
-    } else {
-      Animated.timing(fadeOpacity, {
-        toValue: 0,
-        duration: 220,
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (finished) void handleFinish();
-      });
+  const finish = async () => {
+    await setOnboardingSeen();
+    const token = await getAccessToken();
+    if (token) {
+      router.replace('/(tabs)');
+      return;
     }
+    router.replace('/register');
   };
 
-  const handleSkip = () => {
-    Animated.timing(fadeOpacity, {
-      toValue: 0,
-      duration: 180,
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished) void handleFinish();
-    });
+  const transition = (next: number | 'finish') => {
+    Animated.timing(fadeAnim, { toValue: 0, duration: 180, useNativeDriver: true }).start(
+      ({ finished }) => {
+        if (!finished) return;
+        if (next === 'finish') {
+          void finish();
+          return;
+        }
+        setIndex(next);
+        Animated.timing(fadeAnim, { toValue: 1, duration: 280, useNativeDriver: true }).start();
+      },
+    );
   };
 
-  const fillWidth = progressAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, progressTrackWidth],
-  });
+  const slide = SLIDES[index];
+  const isLast = index === SLIDES.length - 1;
 
   return (
     <View style={styles.screen}>
-      <View style={[styles.glowOrb, styles.glowOrbTop]} pointerEvents="none" />
-      <View style={[styles.glowOrb, styles.glowOrbBottom]} pointerEvents="none" />
+      <OnboardingHeader
+        showBack={index > 0}
+        onBack={() => transition(index - 1)}
+        onSkip={() => transition('finish')}
+      />
 
-      <View style={styles.inner}>
-        <View style={styles.contentArea}>
-          <Animated.View style={[styles.slideBlock, { opacity: fadeOpacity }]}>
-            <View style={styles.iconWrap}>
-              <SlideIcon type={slide.icon} />
-            </View>
-
-            <View style={styles.pill}>
-              <Text style={styles.pillText}>{slidePill}</Text>
-            </View>
-
-            <Text style={styles.title}>{slide.title}</Text>
-            <Text style={styles.subtitle}>{slide.subtitle}</Text>
-          </Animated.View>
-
-          <View style={styles.progressTrack}>
-            <Animated.View style={[styles.progressFill, { width: fillWidth }]} />
+      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+        <View style={styles.illustrationWrap}>
+          <View style={styles.glow} />
+          <View style={styles.iconCircle}>
+            <Feather name={slide.icon} size={48} color={GREEN} />
           </View>
-        </View>
 
-        <View style={styles.bottom}>
-          <TouchableOpacity style={styles.primaryBtn} onPress={handleNext} activeOpacity={0.9}>
-            <Text style={styles.primaryBtnText}>
-              {currentIndex < slides.length - 1 ? 'Next \u2192' : 'Get Started'}
-            </Text>
-          </TouchableOpacity>
+          {slide.extra === 'budget' ? (
+            <>
+              <View style={[styles.floatBadge, styles.floatTopRight]}>
+                <Feather name="navigation" size={18} color={GREEN} />
+              </View>
+              <View style={[styles.floatBadge, styles.floatBottomLeft, styles.floatSmall]}>
+                <Feather name="home" size={14} color={GREEN} />
+              </View>
+            </>
+          ) : null}
 
-          {currentIndex < slides.length - 1 ? (
-            <TouchableOpacity onPress={handleSkip} style={styles.skipWrap} hitSlop={{ top: 12, bottom: 12 }}>
-              <Text style={styles.skipText}>Skip</Text>
-            </TouchableOpacity>
+          {slide.extra === 'qr' ? (
+            <>
+              <View style={[styles.floatBadge, styles.floatTopRight]}>
+                <Feather name="grid" size={18} color={GREEN} />
+              </View>
+              <View style={[styles.floatBadge, styles.floatBottomLeft, styles.floatSmall]}>
+                <Feather name="credit-card" size={14} color={GREEN} />
+              </View>
+            </>
           ) : null}
         </View>
+
+        <View style={styles.textBlock}>
+          <Text style={styles.title}>{slide.title}</Text>
+          <Text style={styles.subtitle}>{slide.subtitle}</Text>
+        </View>
+
+        {slide.extra === 'budget' ? (
+          <View style={styles.hintCard}>
+            <View style={styles.hintIcon}>
+              <Feather name="credit-card" size={16} color={GREEN} />
+            </View>
+            <View>
+              <Text style={styles.hintLabel}>Daily Budget</Text>
+              <Text style={styles.hintValue}>$150.00</Text>
+            </View>
+            <View style={styles.hintCheck}>
+              <Feather name="check" size={12} color={GREEN} />
+            </View>
+          </View>
+        ) : null}
+
+        {slide.extra === 'qr' ? (
+          <View style={styles.qrHintCard}>
+            {[
+              { icon: 'navigation' as const, label: 'Airport Security' },
+              { icon: 'home' as const, label: 'Hotel Check-in' },
+            ].map((row) => (
+              <View key={row.label} style={styles.qrHintRow}>
+                <View style={styles.qrHintIcon}>
+                  <Feather name={row.icon} size={12} color={GREEN} />
+                </View>
+                <Text style={styles.qrHintLabel}>{row.label}</Text>
+                <Feather name="check-circle" size={14} color={GREEN} />
+              </View>
+            ))}
+          </View>
+        ) : null}
+      </Animated.View>
+
+      <View style={[styles.bottom, { paddingBottom: 24 + insets.bottom }]}>
+        <OnboardingDots activeIndex={index} count={SLIDES.length} />
+
+        {isLast ? (
+          <TouchableOpacity
+            style={styles.btnGreen}
+            onPress={() => transition('finish')}
+            activeOpacity={0.92}
+          >
+            <Text style={styles.btnGreenText}>Get Started</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.btnDark}
+            onPress={() => transition(index + 1)}
+            activeOpacity={0.92}
+          >
+            <Text style={styles.btnDarkText}>Next</Text>
+            <Feather name="arrow-right" size={14} color="#fff" />
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
+  screen: { flex: 1, backgroundColor: BG },
+  content: {
     flex: 1,
-    backgroundColor: '#0d0d14',
-  },
-  glowOrb: {
-    position: 'absolute',
-    width: 320,
-    height: 320,
-    borderRadius: 999,
-    backgroundColor: 'rgba(99,102,241,0.08)',
-  },
-  glowOrbTop: {
-    top: -80,
-    right: -100,
-  },
-  glowOrbBottom: {
-    bottom: -120,
-    left: -80,
-  },
-  inner: {
-    flex: 1,
-    paddingHorizontal: H_PADDING,
-    paddingBottom: 24,
-    paddingTop: 56,
-  },
-  contentArea: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  slideBlock: {
     alignItems: 'center',
-    width: '100%',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 80,
   },
-  iconWrap: {
+  illustrationWrap: {
+    width: Math.min(SCREEN_W - 48, 280),
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 40,
+  },
+  glow: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: GREEN,
+    opacity: 0.1,
+    borderRadius: 999,
+    transform: [{ scale: 1.1 }],
+  },
+  iconCircle: {
     width: 120,
     height: 120,
-    borderRadius: 28,
-    backgroundColor: 'rgba(99,102,241,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(99,102,241,0.2)',
+    borderRadius: 60,
+    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  pill: {
-    marginTop: 28,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: '#F3F4F6',
+    zIndex: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.04,
+    shadowRadius: 16,
+    elevation: 3,
   },
-  pillText: {
-    fontSize: 11,
-    color: '#4b5563',
-    fontWeight: '600',
+  cardFrame: {
+    width: 192,
+    height: 192,
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.04,
+    shadowRadius: 16,
+    elevation: 3,
+    zIndex: 1,
   },
+  cardImage: { width: 128, height: 128 },
+  floatBadge: {
+    position: 'absolute',
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    zIndex: 2,
+  },
+  floatTopRight: {
+    top: -16,
+    right: 32,
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    transform: [{ rotate: '12deg' }],
+  },
+  floatBottomLeft: {
+    bottom: 16,
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    transform: [{ rotate: '-6deg' }],
+  },
+  floatSmall: {},
+  textBlock: { alignItems: 'center', maxWidth: 300 },
   title: {
-    marginTop: 32,
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: '700',
-    color: '#ffffff',
+    color: TEXT,
     textAlign: 'center',
-    lineHeight: 32 * 1.2,
-    paddingHorizontal: 8,
+    marginBottom: 12,
+    letterSpacing: -0.3,
   },
   subtitle: {
-    marginTop: 12,
     fontSize: 16,
-    color: '#9ca3af',
+    color: GREY,
     textAlign: 'center',
-    lineHeight: 26,
-    maxWidth: 300,
-    alignSelf: 'center',
-    paddingHorizontal: 4,
+    lineHeight: 24,
   },
-  progressTrack: {
+  hintCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     width: '100%',
-    maxWidth: progressTrackWidth,
-    alignSelf: 'center',
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    overflow: 'hidden',
-    marginTop: 40,
+    maxWidth: 280,
+    marginTop: 32,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#F9FAFB',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 12,
+    elevation: 2,
   },
-  progressFill: {
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: '#6366f1',
-  },
-  bottom: {
-    paddingTop: 8,
-  },
-  primaryBtn: {
-    width: '100%',
-    height: 54,
-    backgroundColor: '#6366f1',
-    borderRadius: 12,
+  hintIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: BG,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  primaryBtnText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  skipWrap: {
+  hintLabel: { fontSize: 12, color: GREY, fontWeight: '500' },
+  hintValue: { fontSize: 14, fontWeight: '700', color: TEXT },
+  hintCheck: {
+    marginLeft: 'auto',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
     alignItems: 'center',
-    marginTop: 16,
+    justifyContent: 'center',
   },
-  skipText: {
-    color: '#4b5563',
-    fontSize: 15,
-    textAlign: 'center',
+  qrHintCard: {
+    width: '100%',
+    maxWidth: 280,
+    marginTop: 32,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#F9FAFB',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 12,
+    elevation: 2,
   },
+  qrHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(248, 248, 246, 0.8)',
+    padding: 8,
+    borderRadius: 12,
+  },
+  qrHintIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qrHintLabel: { flex: 1, fontSize: 12, fontWeight: '500', color: TEXT },
+  bottom: {
+    paddingHorizontal: 24,
+    gap: 32,
+    alignItems: 'center',
+  },
+  btnDark: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: DARK,
+    paddingVertical: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  btnDarkText: { color: '#fff', fontSize: 16, fontWeight: '500' },
+  btnGreen: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: GREEN,
+    paddingVertical: 16,
+    borderRadius: 12,
+    shadowColor: GREEN,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  btnGreenText: { color: '#fff', fontSize: 16, fontWeight: '500' },
 });

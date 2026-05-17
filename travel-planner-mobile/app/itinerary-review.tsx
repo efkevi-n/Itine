@@ -1,10 +1,15 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, Animated,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tripsApi } from '@/api/trips';
 import { itineraryApi } from '@/api/itinerary';
 import { formatTripDateRange } from '@/utils/dateFormat';
@@ -17,6 +22,24 @@ import { cacheItinerary, getCachedItinerary } from '@/utils/offlineCache';
 import { showToast } from '@/utils/toastStore';
 import { getErrorMessage } from '@/utils/errorHandler';
 import { SUCCESS_MESSAGES } from '@/constants/errors';
+import { isBookedTripStatus } from '@/utils/tripStatus';
+import { TripCoverImage } from '@/components/TripCoverImage';
+
+const BG = '#F8F8F6';
+const TEXT = '#1F2937';
+const GREEN = '#10B981';
+const GREY = '#6B7280';
+const LIGHT_GRAY = '#F3F4F6';
+
+const CHART_COLORS = ['#10B981', '#34D399', '#6EE7B7', '#A7F3D0'];
+
+const CARD_SHADOW = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.05,
+  shadowRadius: 10,
+  elevation: 2,
+};
 
 interface ActivityItem {
   name: string;
@@ -40,6 +63,7 @@ interface BudgetItem {
   color: string;
   emoji: string;
   icon: string;
+  displayLabel: string;
 }
 
 interface TripSummary {
@@ -51,25 +75,41 @@ interface TripSummary {
   status: string;
 }
 
-const BUDGET_COLORS = {
-  flights: { label: 'Flights', color: '#38bdf8', emoji: '✈️', icon: 'navigation' },
-  accommodation: { label: 'Accommodation', color: '#22c55e', emoji: '🏨', icon: 'home' },
-  activities: { label: 'Activities', color: '#f59e0b', emoji: '🎭', icon: 'film' },
-  transport: { label: 'Transport', color: '#a78bfa', emoji: '🚗', icon: 'truck' },
-};
+type FeatherName = keyof typeof Feather.glyphMap;
 
-const STATUS_COLORS: Record<string, string> = {
-  PENDING: '#94a3b8',
-  CONFIRMED: '#38bdf8',
-  ACTIVE: '#22c55e',
-  COMPLETED: '#64748b',
-  CANCELLED: '#ef4444',
+interface DayLineItem {
+  icon: FeatherName;
+  tag: string;
+  title: string;
+  cost: string;
+  subtitle?: string;
+}
+
+const BUDGET_COLORS = {
+  flights: { label: 'Flights', displayLabel: 'Flights', color: CHART_COLORS[0], emoji: '✈️', icon: 'navigation' },
+  accommodation: { label: 'Accommodation', displayLabel: 'Hotel', color: CHART_COLORS[1], emoji: '🏨', icon: 'home' },
+  activities: { label: 'Activities', displayLabel: 'Food/Act', color: CHART_COLORS[2], emoji: '🎭', icon: 'tag' },
+  transport: { label: 'Transport', displayLabel: 'Transport', color: CHART_COLORS[3], emoji: '🚗', icon: 'truck' },
 };
 
 function parseNum(v: unknown): number {
   if (typeof v === 'number' && !isNaN(v)) return v;
   if (typeof v === 'string') return parseFloat(v) || 0;
   return 0;
+}
+
+function formatMoney(amount: number, currency: string): string {
+  const sym =
+    currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : `${currency} `;
+  return `${sym}${Math.round(amount).toLocaleString()}`;
+}
+
+function getDayDateLabel(startDate: string, dayIndex: number): string {
+  const start = new Date(startDate);
+  if (Number.isNaN(start.getTime())) return '';
+  const d = new Date(start);
+  d.setDate(d.getDate() + dayIndex);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 function normalizeDay(raw: Record<string, unknown>, index: number): DayItem {
@@ -88,10 +128,10 @@ function normalizeDay(raw: Record<string, unknown>, index: number): DayItem {
       : '$0';
 
   const hotelName = String(hotel?.['name'] ?? hotel?.['hotelName'] ?? '');
-  const hotelType = String(hotel?.['type'] ?? '');
+  const hotelType = String(hotel?.['type'] ?? hotel?.['roomType'] ?? '');
   const hotelCostVal = hotel?.['cost'] ?? hotel?.['pricePerNight'];
   const hotelCost = hotelCostVal != null
-    ? `${typeof hotelCostVal === 'string' ? hotelCostVal : `$${parseNum(hotelCostVal)}/night`}`
+    ? `${typeof hotelCostVal === 'string' ? hotelCostVal : `$${parseNum(hotelCostVal)}`}`
     : '—';
 
   const transportInfo =
@@ -134,7 +174,10 @@ function normalizeDay(raw: Record<string, unknown>, index: number): DayItem {
 }
 
 function buildBudgetFromDays(days: DayItem[]): BudgetItem[] {
-  let flights = 0, accommodation = 0, activities = 0, transport = 0;
+  let flights = 0,
+    accommodation = 0,
+    activities = 0,
+    transport = 0;
   days.forEach((d) => {
     if (d.flight) {
       const m = d.flight.cost.replace(/[^0-9.]/g, '');
@@ -157,8 +200,50 @@ function buildBudgetFromDays(days: DayItem[]): BudgetItem[] {
   ].filter((b) => b.amount > 0);
 }
 
+function getDayLineItems(day: DayItem): DayLineItem[] {
+  const items: DayLineItem[] = [];
+  if (day.flight) {
+    items.push({
+      icon: 'navigation',
+      tag: 'Flight • 10:00 AM',
+      title: day.flight.info,
+      cost: day.flight.cost,
+    });
+  }
+  if (day.hotel.name && day.hotel.name !== '—') {
+    items.push({
+      icon: 'home',
+      tag: 'Hotel • 3:00 PM',
+      title: day.hotel.name,
+      cost: day.hotel.cost,
+      subtitle: day.hotel.type || undefined,
+    });
+  }
+  if (day.transport.info && day.transport.info !== '—') {
+    items.push({
+      icon: 'truck',
+      tag: 'Transport • 2:00 PM',
+      title: day.transport.info,
+      cost: day.transport.cost,
+    });
+  }
+  day.activities.forEach((a) => {
+    if (!a.name) return;
+    const isFood = /food|dining|meal|restaurant|ramen|cafe/i.test(a.name);
+    items.push({
+      icon: isFood ? 'coffee' : 'tag',
+      tag: `${isFood ? 'Dining' : 'Activity'} • 10:00 AM`,
+      title: a.name,
+      cost: a.cost,
+      subtitle: a.duration,
+    });
+  });
+  return items;
+}
+
 export default function ItineraryReviewScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { isOnline } = useConnectivity();
   const { tripId } = useLocalSearchParams<{ tripId?: string }>();
   const [trip, setTrip] = useState<TripSummary | null>(null);
@@ -170,15 +255,6 @@ export default function ItineraryReviewScreen() {
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [expandedDay, setExpandedDay] = useState<number | null>(1);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 520,
-      useNativeDriver: true,
-    }).start();
-  }, [fadeAnim]);
 
   const loadData = useCallback(async () => {
     if (!tripId) {
@@ -227,18 +303,33 @@ export default function ItineraryReviewScreen() {
           (itineraryData as Record<string, unknown>)?.budgetBreakdown ??
           (itineraryData as Record<string, unknown>)?.budget_breakdown;
         if (Array.isArray(breakdown) && breakdown.length > 0) {
-          const map: Record<string, { label: string; color: string; emoji: string; icon: string }> = {
+          const map: Record<string, (typeof BUDGET_COLORS)['flights']> = {
             flights: BUDGET_COLORS.flights,
             accommodation: BUDGET_COLORS.accommodation,
             activities: BUDGET_COLORS.activities,
             transport: BUDGET_COLORS.transport,
           };
           const fromApi = breakdown
-            .map((b: unknown) => {
+            .map((b: unknown, i: number) => {
               const x = b as Record<string, unknown>;
               const key = String(x.category ?? x.type ?? '').toLowerCase();
-              const def = map[key] ?? { label: String(x.label ?? key), color: '#94a3b8', emoji: '📦', icon: 'package' };
-              return { label: def.label, amount: parseNum(x.amount ?? x.value), color: def.color, emoji: def.emoji, icon: def.icon } as BudgetItem;
+              const def =
+                map[key] ??
+                ({
+                  label: String(x.label ?? key),
+                  displayLabel: String(x.label ?? key),
+                  color: CHART_COLORS[i % CHART_COLORS.length],
+                  emoji: '📦',
+                  icon: 'package',
+                } as const);
+              return {
+                label: def.label,
+                displayLabel: def.displayLabel,
+                amount: parseNum(x.amount ?? x.value),
+                color: def.color,
+                emoji: def.emoji,
+                icon: def.icon,
+              } as BudgetItem;
             })
             .filter((b) => b.amount > 0);
           setBudgetBreakdown(fromApi.length > 0 ? fromApi : buildBudgetFromDays(days));
@@ -249,7 +340,9 @@ export default function ItineraryReviewScreen() {
           cacheItinerary(tripId, {
             trip: tripData,
             days: rawDays,
-            budgetBreakdown: (itineraryData as Record<string, unknown>)?.budgetBreakdown ?? (itineraryData as Record<string, unknown>)?.budget_breakdown,
+            budgetBreakdown:
+              (itineraryData as Record<string, unknown>)?.budgetBreakdown ??
+              (itineraryData as Record<string, unknown>)?.budget_breakdown,
             status,
           }).catch(() => {});
         }
@@ -258,7 +351,14 @@ export default function ItineraryReviewScreen() {
       const err = e as { response?: { data?: { message?: string } }; message?: string };
       if (!isOnline && tripId) {
         const cached = await getCachedItinerary(tripId);
-        const data = cached?.data as { trip?: Record<string, unknown>; days?: Record<string, unknown>[]; budgetBreakdown?: unknown[]; status?: string } | undefined;
+        const data = cached?.data as
+          | {
+              trip?: Record<string, unknown>;
+              days?: Record<string, unknown>[];
+              budgetBreakdown?: unknown[];
+              status?: string;
+            }
+          | undefined;
         if (data?.trip) {
           setTrip({
             destination: String(data.trip.destination ?? ''),
@@ -274,18 +374,35 @@ export default function ItineraryReviewScreen() {
             setItinerary(days);
             const breakdown = data.budgetBreakdown;
             if (Array.isArray(breakdown) && breakdown.length > 0) {
-              const map: Record<string, { label: string; color: string; emoji: string; icon: string }> = {
+              const map: Record<string, (typeof BUDGET_COLORS)['flights']> = {
                 flights: BUDGET_COLORS.flights,
                 accommodation: BUDGET_COLORS.accommodation,
                 activities: BUDGET_COLORS.activities,
                 transport: BUDGET_COLORS.transport,
               };
-              setBudgetBreakdown(breakdown.map((b: unknown) => {
-                const x = b as Record<string, unknown>;
-                const key = String(x.category ?? x.type ?? '').toLowerCase();
-                const def = map[key] ?? { label: String(x.label ?? key), color: '#94a3b8', emoji: '📦', icon: 'package' };
-                return { label: def.label, amount: parseNum(x.amount ?? x.value), color: def.color, emoji: def.emoji, icon: def.icon } as BudgetItem;
-              }));
+              setBudgetBreakdown(
+                breakdown.map((b: unknown, i: number) => {
+                  const x = b as Record<string, unknown>;
+                  const key = String(x.category ?? x.type ?? '').toLowerCase();
+                  const def =
+                    map[key] ??
+                    ({
+                      label: String(x.label ?? key),
+                      displayLabel: String(x.label ?? key),
+                      color: CHART_COLORS[i % CHART_COLORS.length],
+                      emoji: '📦',
+                      icon: 'package',
+                    } as const);
+                  return {
+                    label: def.label,
+                    displayLabel: def.displayLabel,
+                    amount: parseNum(x.amount ?? x.value),
+                    color: def.color,
+                    emoji: def.emoji,
+                    icon: def.icon,
+                  } as BudgetItem;
+                }),
+              );
             } else setBudgetBreakdown(buildBudgetFromDays(days));
           }
           setError(null);
@@ -314,18 +431,27 @@ export default function ItineraryReviewScreen() {
 
   const handleConfirm = async () => {
     setConfirmError(null);
-    if (!tripId) { router.replace('/(tabs)'); return; }
+    if (!tripId) {
+      router.replace('/(tabs)');
+      return;
+    }
     setConfirmLoading(true);
     try {
       await tripsApi.confirm(tripId);
       if (trip?.destination != null && trip?.startDate != null) {
-        scheduleTripReminder({ tripId: String(tripId), destination: trip.destination, startDate: trip.startDate }).catch(() => {});
+        scheduleTripReminder({
+          tripId: String(tripId),
+          destination: trip.destination,
+          startDate: trip.startDate,
+        }).catch(() => {});
       }
       const notif: AppNotification = {
         id: `trip_confirmed_${tripId}_${Date.now()}`,
         type: 'trip_confirmed',
         title: 'Trip confirmed',
-        body: trip?.destination ? `Your trip to ${trip.destination} is confirmed. Your QR Pass is ready.` : 'Your trip is confirmed.',
+        body: trip?.destination
+          ? `Your trip to ${trip.destination} is confirmed. Your QR Pass is ready.`
+          : 'Your trip is confirmed.',
         tripId: String(tripId),
         isRead: false,
         createdAt: new Date().toISOString(),
@@ -343,18 +469,27 @@ export default function ItineraryReviewScreen() {
   const totalBudget = trip
     ? budgetBreakdown.reduce((s, b) => s + b.amount, 0) || trip.totalBudget
     : 0;
-  const nights = trip && trip.startDate && trip.endDate
-    ? Math.max(0, Math.ceil((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24)))
-    : 0;
-  const statusColor = trip ? (STATUS_COLORS[trip.status] ?? '#94a3b8') : '#94a3b8';
+  const tripDays =
+    trip && trip.startDate && trip.endDate
+      ? Math.max(
+          1,
+          Math.ceil(
+            (new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) /
+              (1000 * 60 * 60 * 24),
+          ) + 1,
+        )
+      : itinerary.length || 1;
   const offlineDisabled = !isOnline;
+  const tripStatus = trip?.status?.toUpperCase() ?? '';
+  const isBooked = isBookedTripStatus(tripStatus);
+  const isPending = tripStatus === 'PENDING';
 
   if (!tripId) return null;
 
   if (loading && !trip) {
     return (
       <View style={[styles.screen, styles.centered]}>
-        <ActivityIndicator size="large" color="#6366f1" />
+        <ActivityIndicator size="large" color={GREEN} />
         <Text style={styles.loadingText}>Loading itinerary...</Text>
       </View>
     );
@@ -374,7 +509,7 @@ export default function ItineraryReviewScreen() {
   if (isGenerating) {
     return (
       <View style={[styles.screen, styles.centered]}>
-        <ActivityIndicator size="large" color="#6366f1" />
+        <ActivityIndicator size="large" color={GREEN} />
         <Text style={styles.loadingText}>Still generating your itinerary...</Text>
         <Text style={styles.generatingSubtext}>{"We'll refresh automatically."}</Text>
       </View>
@@ -385,281 +520,416 @@ export default function ItineraryReviewScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={[styles.glowOrb, styles.glowOrbTop]} pointerEvents="none" />
-      <View style={[styles.glowOrb, styles.glowOrbBottom]} pointerEvents="none" />
-
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 140 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View style={{ opacity: fadeAnim }}>
-          <OfflineBanner visible={!isOnline} />
+        <OfflineBanner visible={!isOnline} />
 
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.7}>
-            <Feather name="chevron-left" size={22} color="#6366f1" />
-            <Text style={styles.backText}>Back</Text>
+        <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.8}>
+            <Feather name="chevron-left" size={18} color={GREY} />
           </TouchableOpacity>
+          <Text style={styles.topTitle}>{isBooked ? 'Your Trip' : 'Trip Summary'}</Text>
+          {isPending ? (
+            <TouchableOpacity
+              style={styles.editTopBtn}
+              onPress={() => router.push({ pathname: '/edit-itinerary', params: { tripId } })}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.editTopBtnText}>Edit</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.topSpacer} />
+          )}
+        </View>
 
-          <View style={styles.headerSection}>
-            <Text style={styles.headerKicker}>ITINERARY REVIEW</Text>
-            <Text style={styles.headerTitle}>Your Trip Plan</Text>
-            <Text style={styles.headerSubtitle}>Review and confirm your AI-generated itinerary</Text>
-            <View style={styles.headerDivider} />
+        <View style={[styles.heroCard, CARD_SHADOW]}>
+          <TripCoverImage
+            destination={trip.destination}
+            containerStyle={styles.heroCover}
+          />
+          <View style={styles.heroGradient} />
+          <Text style={styles.heroDestination}>{trip.destination}</Text>
+        </View>
+
+        <View style={[styles.summaryCard, CARD_SHADOW]}>
+          <View style={styles.summaryTop}>
+            <Text style={styles.destination}>{trip.destination}</Text>
+            <View style={styles.daysPill}>
+              <Text style={styles.daysPillText}>{tripDays} Days</Text>
+            </View>
           </View>
+          <Text style={styles.summaryDates}>
+            {formatTripDateRange(trip.startDate, trip.endDate)}
+          </Text>
+          <View style={styles.summaryBudgetRow}>
+            <Text style={styles.summaryBudgetLabel}>Total Budget:</Text>
+            <Text style={styles.summaryBudgetValue}>{formatMoney(totalBudget, trip.currency)}</Text>
+          </View>
+        </View>
 
-          <View style={styles.summaryCard}>
-            <Text style={styles.cardKicker}>TRIP SUMMARY</Text>
-            <Text style={styles.destinationText}>{trip.destination}</Text>
-            <View style={styles.pillRow}>
-              <View style={styles.pill}>
-                <Text style={styles.pillText}>{formatTripDateRange(trip.startDate, trip.endDate)}</Text>
+        {error ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={() => loadData()}>
+              <Text style={styles.retryBtnText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {budgetBreakdown.length > 0 ? (
+          <View style={[styles.budgetCard, CARD_SHADOW]}>
+            <View style={styles.budgetCardHeader}>
+              <View style={styles.budgetIconWrap}>
+                <Feather name="pie-chart" size={10} color={GREEN} />
               </View>
-              {nights > 0 ? (
-                <View style={styles.pill}>
-                  <Text style={styles.pillText}>{nights} nights</Text>
+              <Text style={styles.budgetCardTitle}>Budget Breakdown</Text>
+            </View>
+            <View style={styles.budgetChart}>
+              {budgetBreakdown.map((item) => (
+                <View
+                  key={item.label}
+                  style={[
+                    styles.budgetSegment,
+                    {
+                      flex: totalBudget > 0 ? item.amount / totalBudget : 1 / budgetBreakdown.length,
+                      backgroundColor: item.color,
+                    },
+                  ]}
+                />
+              ))}
+            </View>
+            <View style={styles.budgetLegendGrid}>
+              {budgetBreakdown.map((item) => (
+                <View key={item.label} style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                  <Text style={styles.legendText}>
+                    {item.displayLabel} ({formatMoney(item.amount, trip.currency)})
+                  </Text>
                 </View>
-              ) : null}
-              <View style={[styles.pill, styles.pillAccent]}>
-                <Text style={styles.pillAccentText}>
-                  {trip.currency} {totalBudget.toLocaleString()}
-                </Text>
-              </View>
-              <View style={[styles.pill, { backgroundColor: `${statusColor}22`, borderColor: `${statusColor}44` }]}>
-                <Text style={[styles.pillText, { color: statusColor }]}>{trip.status}</Text>
-              </View>
+              ))}
             </View>
           </View>
+        ) : null}
 
-          {error ? (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{error}</Text>
-              <TouchableOpacity style={styles.retryBtn} onPress={() => loadData()}>
-                <Text style={styles.retryBtnText}>Retry</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
+        <View style={styles.daysSection}>
+          {itinerary.map((day) => {
+            const isExpanded = expandedDay === day.day;
+            const dateLabel = trip.startDate ? getDayDateLabel(trip.startDate, day.day - 1) : '';
+            const lineItems = getDayLineItems(day);
 
-          <View style={styles.navRow}>
-            <TouchableOpacity
-              style={styles.navBtn}
-              onPress={() => router.push({ pathname: '/budget-breakdown', params: { tripId } })}
-            >
-              <Feather name="pie-chart" size={16} color="#6366f1" />
-              <Text style={styles.navBtnText}>Budget</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.navBtn, offlineDisabled && styles.btnDisabled]}
-              onPress={() => !offlineDisabled && router.push({ pathname: '/edit-itinerary', params: { tripId } } as Parameters<typeof router.push>[0])}
-              disabled={offlineDisabled}
-            >
-              <Feather name="edit-2" size={16} color="#6366f1" />
-              <Text style={styles.navBtnText}>Edit</Text>
-            </TouchableOpacity>
-          </View>
-
-          {budgetBreakdown.length > 0 ? (
-            <View style={styles.budgetCard}>
-              <Text style={styles.cardKicker}>BUDGET BREAKDOWN</Text>
-              <View style={styles.budgetBar}>
-                {budgetBreakdown.map((item) => (
-                  <View
-                    key={item.label}
-                    style={[styles.budgetSegment, { flex: totalBudget > 0 ? item.amount / totalBudget : 0.25, backgroundColor: item.color }]}
-                  />
-                ))}
-              </View>
-              <View style={styles.budgetLegend}>
-                {budgetBreakdown.map((item) => (
-                  <View key={item.label} style={styles.legendRow}>
-                    <View style={styles.legendLeft}>
-                      <View style={[styles.legendDot, { backgroundColor: item.color }]} />
-                      <Feather name={item.icon as keyof typeof Feather.glyphMap} size={14} color="#9ca3af" style={styles.legendIcon} />
-                      <Text style={styles.legendLabel}>{item.label}</Text>
-                    </View>
-                    <Text style={styles.legendAmount}>{trip.currency} {item.amount}</Text>
-                  </View>
-                ))}
-              </View>
-              <View style={styles.budgetTotalRow}>
-                <Text style={styles.budgetTotalLabel}>TOTAL</Text>
-                <Text style={styles.budgetTotalValue}>{trip.currency} {totalBudget.toLocaleString()}</Text>
-              </View>
-            </View>
-          ) : null}
-
-          <View style={styles.dayByDaySection}>
-            <Text style={styles.sectionKicker}>DAY-BY-DAY PLAN</Text>
-            {itinerary.map((day) => (
-              <View key={day.day} style={styles.dayCard}>
+            return (
+              <View key={day.day} style={[styles.dayCard, CARD_SHADOW]}>
                 <TouchableOpacity
                   style={styles.dayHeader}
-                  onPress={() => setExpandedDay(expandedDay === day.day ? null : day.day)}
-                  activeOpacity={0.7}
+                  onPress={() => setExpandedDay(isExpanded ? null : day.day)}
+                  activeOpacity={0.85}
                 >
-                  <View>
-                    <Text style={styles.dayKicker}>DAY {day.day}</Text>
-                    <Text style={styles.dayTitle}>{day.title}</Text>
+                  <View style={styles.dayHeaderLeft}>
+                    <View style={styles.dayNumber}>
+                      <Text style={styles.dayNumberText}>{day.day}</Text>
+                    </View>
+                    <View>
+                      <Text style={styles.dayTitle}>{day.title}</Text>
+                      <Text style={styles.dayMeta}>
+                        {dateLabel}
+                        {dateLabel ? ' • ' : ''}
+                        {formatMoney(day.dayTotal, trip.currency)}
+                      </Text>
+                    </View>
                   </View>
                   <Feather
-                    name={expandedDay === day.day ? 'chevron-up' : 'chevron-down'}
-                    size={22}
-                    color="#6366f1"
+                    name="chevron-down"
+                    size={14}
+                    color={GREY}
+                    style={{ transform: [{ rotate: isExpanded ? '180deg' : '0deg' }] }}
                   />
                 </TouchableOpacity>
 
-                {expandedDay === day.day && (
-                  <View style={styles.dayExpanded}>
-                    <View style={styles.expandedDivider} />
-
-                    {day.flight && (
-                      <View style={styles.itemRow}>
-                        <View style={styles.itemInfo}>
-                          <Text style={styles.itemTypeLabel}>FLIGHT</Text>
-                          <Text style={styles.itemValue}>{day.flight.info}</Text>
+                {isExpanded ? (
+                  <View style={styles.dayBody}>
+                    <View style={styles.dayDivider} />
+                    {lineItems.map((item, idx) => (
+                      <View key={`${day.day}-${idx}`} style={styles.lineItem}>
+                        <View style={styles.lineIconWrap}>
+                          <Feather name={item.icon} size={10} color={GREY} />
                         </View>
-                        <View style={styles.itemRight}>
-                          <Text style={styles.itemCost}>{day.flight.cost}</Text>
+                        <View style={styles.lineContent}>
+                          <Text style={styles.lineTag}>{item.tag}</Text>
+                          <View style={styles.lineTitleRow}>
+                            <Text style={styles.lineTitle} numberOfLines={2}>
+                              {item.title}
+                            </Text>
+                            <Text style={styles.lineCost}>{item.cost}</Text>
+                          </View>
+                          {item.subtitle ? (
+                            <Text style={styles.lineSubtitle}>{item.subtitle}</Text>
+                          ) : null}
                         </View>
-                      </View>
-                    )}
-
-                    <View style={styles.itemRow}>
-                      <View style={styles.itemInfo}>
-                        <Text style={styles.itemTypeLabel}>HOTEL</Text>
-                        <Text style={styles.itemValue}>{day.hotel.name}</Text>
-                        <Text style={styles.itemSubValue}>{day.hotel.type}</Text>
-                      </View>
-                      <View style={styles.itemRight}>
-                        <Text style={styles.itemCost}>{day.hotel.cost}</Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.itemRow}>
-                      <View style={styles.itemInfo}>
-                        <Text style={styles.itemTypeLabel}>TRANSPORT</Text>
-                        <Text style={styles.itemValue}>{day.transport.info}</Text>
-                      </View>
-                      <View style={styles.itemRight}>
-                        <Text style={styles.itemCost}>{day.transport.cost}</Text>
-                      </View>
-                    </View>
-
-                    <Text style={styles.activitiesLabel}>ACTIVITIES</Text>
-                    {day.activities.map((activity, index) => (
-                      <View
-                        key={index}
-                        style={[styles.activityRow, index < day.activities.length - 1 && styles.activityRowSep]}
-                      >
-                        <Text style={styles.activityName}>{activity.name}</Text>
-                        <Text style={styles.activityCost}>{activity.cost}</Text>
                       </View>
                     ))}
                   </View>
-                )}
+                ) : null}
               </View>
-            ))}
-          </View>
+            );
+          })}
+        </View>
 
-          {confirmError ? (
-            <Text style={styles.confirmErrorText}>{confirmError}</Text>
-          ) : null}
+        {confirmError ? <Text style={styles.confirmErrorText}>{confirmError}</Text> : null}
+      </ScrollView>
 
+      <View style={[styles.stickyCta, { bottom: 24 + insets.bottom }]}>
+        {isPending ? (
           <TouchableOpacity
             style={[styles.confirmBtn, (confirmLoading || offlineDisabled) && styles.btnDisabled]}
             onPress={handleConfirm}
             disabled={confirmLoading || offlineDisabled}
-            activeOpacity={0.85}
+            activeOpacity={0.92}
           >
             {confirmLoading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.confirmText}>Confirm & Generate QR Pass</Text>
+              <>
+                <Feather name="maximize" size={16} color="#fff" />
+                <Text style={styles.confirmText}>Confirm & Generate QR Pass</Text>
+              </>
             )}
           </TouchableOpacity>
-
+        ) : (
           <TouchableOpacity
-            style={styles.regenerateBtn}
-            onPress={() => router.back()}
-            activeOpacity={0.7}
+            style={styles.confirmBtn}
+            onPress={() => router.replace({ pathname: '/trip-detail', params: { tripId } })}
+            activeOpacity={0.92}
           >
-            <Text style={styles.regenerateText}>Regenerate</Text>
+            <Text style={styles.confirmText}>Open Trip Hub</Text>
           </TouchableOpacity>
-        </Animated.View>
-      </ScrollView>
+        )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#0d0d14' },
-  centered: { justifyContent: 'center', alignItems: 'center' },
-  glowOrb: { position: 'absolute', width: 320, height: 320, borderRadius: 999, backgroundColor: 'rgba(99,102,241,0.08)' },
-  glowOrbTop: { top: -80, right: -100 },
-  glowOrbBottom: { bottom: -120, left: -80 },
+  screen: { flex: 1, backgroundColor: BG },
   scroll: { flex: 1 },
-  content: { paddingHorizontal: 24, paddingBottom: 60, gap: 20 },
-  loadingText: { color: '#9ca3af', marginTop: 12 },
-  generatingSubtext: { color: '#4b5563', marginTop: 8, fontSize: 14 },
-  errorBox: { backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)', borderRadius: 12, padding: 12 },
-  errorText: { color: '#f87171', textAlign: 'center', marginBottom: 8 },
-  retryBtn: { marginTop: 8, paddingVertical: 10, paddingHorizontal: 24, backgroundColor: '#6366f1', borderRadius: 12, alignSelf: 'center' },
-  retryBtnText: { color: '#ffffff', fontWeight: '700', fontSize: 15 },
-  backButton: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginTop: 48, paddingVertical: 4 },
-  backText: { color: '#6366f1', fontSize: 16, fontWeight: '500' },
-  headerSection: { gap: 6 },
-  headerKicker: { fontSize: 10, color: '#4b5563', letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: '600' },
-  headerTitle: { fontSize: 26, fontWeight: '700', color: '#ffffff' },
-  headerSubtitle: { fontSize: 13, color: '#9ca3af', lineHeight: 20 },
-  headerDivider: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.06)', marginTop: 10 },
-  summaryCard: { backgroundColor: '#13131f', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', borderRadius: 14, padding: 16, gap: 12 },
-  cardKicker: { fontSize: 10, color: '#4b5563', letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: '600' },
-  destinationText: { fontSize: 18, fontWeight: '700', color: '#ffffff' },
-  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  pill: { backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
-  pillText: { fontSize: 13, color: '#9ca3af' },
-  pillAccent: { backgroundColor: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.25)' },
-  pillAccentText: { fontSize: 13, color: '#6366f1', fontWeight: '600' },
-  navRow: { flexDirection: 'row', gap: 12 },
-  navBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, backgroundColor: '#13131f', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(99,102,241,0.2)' },
-  navBtnText: { color: '#6366f1', fontWeight: '600', fontSize: 15 },
-  budgetCard: { backgroundColor: '#13131f', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', borderRadius: 14, padding: 16, gap: 14 },
-  budgetBar: { flexDirection: 'row', height: 8, borderRadius: 4, overflow: 'hidden' },
+  scrollContent: { paddingHorizontal: 24 },
+  centered: { justifyContent: 'center', alignItems: 'center', padding: 24 },
+  loadingText: { color: GREY, marginTop: 12, fontSize: 14 },
+  generatingSubtext: { color: GREY, marginTop: 8, fontSize: 14 },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...CARD_SHADOW,
+  },
+  topTitle: { fontSize: 18, fontWeight: '700', color: TEXT },
+  topSpacer: { width: 40 },
+  editTopBtn: {
+    minWidth: 40,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editTopBtnText: { fontSize: 13, fontWeight: '700', color: GREEN },
+  heroCover: {
+    width: '100%',
+    height: '100%',
+  },
+  heroCard: {
+    height: 160,
+    borderRadius: 24,
+    overflow: 'hidden',
+    marginBottom: 16,
+    position: 'relative',
+    backgroundColor: '#ddd',
+  },
+  heroImage: { width: '100%', height: '100%' },
+  heroGradient: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(17, 24, 39, 0.35)',
+  },
+  heroDestination: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    bottom: 16,
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  summaryCard: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 24,
+  },
+  summaryTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+    gap: 12,
+  },
+  destination: { fontSize: 24, fontWeight: '700', color: TEXT, flex: 1 },
+  daysPill: {
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  daysPillText: { fontSize: 12, fontWeight: '600', color: GREEN },
+  summaryDates: { fontSize: 14, color: GREY, marginBottom: 16 },
+  summaryBudgetRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  summaryBudgetLabel: { fontSize: 14, fontWeight: '600', color: TEXT },
+  summaryBudgetValue: { fontSize: 14, fontWeight: '700', color: GREEN },
+  errorBox: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 16,
+  },
+  errorText: { color: '#EF4444', textAlign: 'center', marginBottom: 8 },
+  retryBtn: {
+    alignSelf: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    backgroundColor: GREEN,
+    borderRadius: 20,
+  },
+  retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  budgetCard: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 24,
+  },
+  budgetCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
+  budgetIconWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  budgetCardTitle: { fontSize: 14, fontWeight: '700', color: TEXT },
+  budgetChart: {
+    flexDirection: 'row',
+    height: 80,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
   budgetSegment: { height: '100%' },
-  budgetLegend: { gap: 10 },
-  legendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  legendLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  budgetLegendGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 8, width: '47%' },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendIcon: { marginRight: 2 },
-  legendLabel: { fontSize: 13, color: '#9ca3af', flex: 1 },
-  legendAmount: { fontSize: 13, color: '#ffffff', fontWeight: '700' },
-  budgetTotalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.06)' },
-  budgetTotalLabel: { fontSize: 10, color: '#4b5563', letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: '600' },
-  budgetTotalValue: { fontSize: 18, fontWeight: '700', color: '#ffffff' },
-  dayByDaySection: { gap: 12 },
-  sectionKicker: { fontSize: 10, color: '#4b5563', letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: '600' },
-  dayCard: { backgroundColor: '#13131f', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' },
-  dayHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 },
-  dayKicker: { fontSize: 10, color: '#4b5563', letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: '600' },
-  dayTitle: { fontSize: 15, fontWeight: '700', color: '#ffffff', marginTop: 4 },
-  dayExpanded: { paddingHorizontal: 16, paddingBottom: 16 },
-  expandedDivider: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.06)', marginBottom: 14 },
-  itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: 12, marginBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.05)' },
-  itemInfo: { flex: 1, paddingRight: 12 },
-  itemTypeLabel: { fontSize: 10, color: '#4b5563', letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: '600', marginBottom: 4 },
-  itemValue: { fontSize: 14, color: '#ffffff' },
-  itemSubValue: { fontSize: 12, color: '#9ca3af', marginTop: 2 },
-  itemRight: { alignItems: 'flex-end', gap: 8 },
-  itemCost: { fontSize: 14, color: '#ffffff', fontWeight: '700' },
-  activitiesLabel: { fontSize: 10, color: '#4b5563', letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: '600', marginBottom: 10, marginTop: 4 },
-  activityRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 10 },
-  activityRowSep: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.05)' },
-  activityName: { fontSize: 14, color: '#9ca3af', flex: 1, paddingRight: 12 },
-  activityCost: { fontSize: 14, color: '#f59e0b', fontWeight: '600' },
-  confirmErrorText: { color: '#f87171', textAlign: 'center' },
-  confirmBtn: { width: '100%', height: 54, borderRadius: 12, backgroundColor: '#6366f1', alignItems: 'center', justifyContent: 'center' },
-  confirmText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
-  regenerateBtn: { width: '100%', height: 54, borderRadius: 12, backgroundColor: '#13131f', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', alignItems: 'center', justifyContent: 'center' },
-  regenerateText: { color: '#9ca3af', fontSize: 16, fontWeight: '500' },
+  legendText: { fontSize: 11, color: GREY, flex: 1 },
+  daysSection: { gap: 16, paddingBottom: 16 },
+  dayCard: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  dayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  dayHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  dayNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: LIGHT_GRAY,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayNumberText: { fontSize: 14, fontWeight: '700', color: TEXT },
+  dayTitle: { fontSize: 14, fontWeight: '700', color: TEXT },
+  dayMeta: { fontSize: 11, color: GREY, marginTop: 2 },
+  dayBody: { paddingHorizontal: 20, paddingBottom: 20 },
+  dayDivider: { height: 1, backgroundColor: '#F3F4F6', marginBottom: 16 },
+  lineItem: { flexDirection: 'row', gap: 12, marginBottom: 16 },
+  lineIconWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(243, 244, 246, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  lineContent: { flex: 1, minWidth: 0 },
+  lineTag: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: GREY,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 2,
+  },
+  lineTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  lineTitle: { fontSize: 13, fontWeight: '600', color: TEXT, flex: 1 },
+  lineCost: { fontSize: 13, fontWeight: '600', color: TEXT },
+  lineSubtitle: { fontSize: 11, color: GREY, marginTop: 2 },
+  confirmErrorText: { color: '#EF4444', textAlign: 'center', marginBottom: 8 },
+  stickyCta: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    zIndex: 40,
+  },
+  confirmBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: GREEN,
+    borderRadius: 999,
+    paddingVertical: 16,
+    shadowColor: GREEN,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  confirmText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   btnDisabled: { opacity: 0.6 },
+  secondaryCtaBtn: {
+    marginTop: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 999,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  secondaryCtaText: { fontSize: 15, fontWeight: '600', color: TEXT },
 });
