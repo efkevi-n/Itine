@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useScreenInsets } from '@/hooks/useScreenInsets';
 import { TripRouteMap } from '@/components/journey/TripRouteMap';
 import { LiveStopCard } from '@/components/live-trip/LiveStopCard';
 import { OfflineBanner } from '@/components/OfflineBanner';
@@ -54,7 +54,7 @@ function countTripDays(startDate: string, endDate: string): number {
 
 export default function ActiveTripScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { top, stackScrollBottomCompact: scrollBottom } = useScreenInsets();
   const { isOnline } = useConnectivity();
   const { tripId } = useLocalSearchParams<{ tripId?: string }>();
   const resolvedId = typeof tripId === 'string' ? tripId : undefined;
@@ -90,7 +90,7 @@ export default function ActiveTripScreen() {
 
   if (loading && !tracker) {
     return (
-      <View style={[styles.screen, styles.centered]}>
+      <View style={[styles.screen, styles.centered, { paddingTop: top }]}>
         <ActivityIndicator size="large" color={GREEN} />
         <Text style={styles.loadingText}>Loading live trip...</Text>
       </View>
@@ -99,7 +99,7 @@ export default function ActiveTripScreen() {
 
   if (error && !tracker) {
     return (
-      <View style={[styles.screen, styles.centered]}>
+      <View style={[styles.screen, styles.centered, { paddingTop: top }]}>
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={loadData}>
           <Text style={styles.retryBtnText}>Retry</Text>
@@ -144,7 +144,7 @@ export default function ActiveTripScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: top }]}>
         <TouchableOpacity style={styles.headerBtn} onPress={() => router.back()} activeOpacity={0.85}>
           <Feather name="arrow-left" size={16} color={TEXT} />
         </TouchableOpacity>
@@ -156,7 +156,7 @@ export default function ActiveTripScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 + insets.bottom }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollBottom }]}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={loadData} tintColor={GREEN} />}
       >

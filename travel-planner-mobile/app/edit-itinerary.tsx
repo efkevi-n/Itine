@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useScreenInsets } from '@/hooks/useScreenInsets';
 import { BudgetTracker } from '@/components/BudgetTracker';
 import { ServiceSwapCard } from '@/components/ServiceSwapCard';
 import { useEditItinerary } from '@/hooks/useEditItinerary';
@@ -22,7 +22,7 @@ const GREY = '#6B7280';
 
 export default function EditItineraryScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { top, stackScrollBottomCompact: scrollBottom } = useScreenInsets();
   const { tripId } = useLocalSearchParams<{ tripId?: string }>();
   const {
     services,
@@ -59,14 +59,14 @@ export default function EditItineraryScreen() {
 
   if (!tripId) {
     return (
-      <View style={[styles.screen, styles.centered]}>
+      <View style={[styles.screen, styles.centered, { paddingTop: top }]}>
         <Text style={styles.errorText}>Missing trip ID.</Text>
       </View>
     );
   }
   if (loading && currentDays.length === 0 && !locked) {
     return (
-      <View style={[styles.screen, styles.centered]}>
+      <View style={[styles.screen, styles.centered, { paddingTop: top }]}>
         <ActivityIndicator size="large" color={GREEN} />
         <Text style={styles.loadingText}>Loading itinerary...</Text>
       </View>
@@ -74,7 +74,7 @@ export default function EditItineraryScreen() {
   }
   if ((error && currentDays.length === 0) || locked) {
     return (
-      <View style={[styles.screen, styles.centered, { paddingTop: insets.top }]}>
+      <View style={[styles.screen, styles.centered, { paddingTop: top }]}>
         <Feather name="lock" size={32} color={GREY} style={{ marginBottom: 12 }} />
         <Text style={styles.errorText}>
           {error ?? 'This trip has been booked and can no longer be edited.'}
@@ -88,7 +88,7 @@ export default function EditItineraryScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: top }]}>
         <TouchableOpacity style={styles.headerBtn} onPress={() => router.back()} activeOpacity={0.85}>
           <Feather name="chevron-left" size={20} color={TEXT} />
         </TouchableOpacity>
@@ -98,7 +98,7 @@ export default function EditItineraryScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 32 + insets.bottom }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollBottom }]}
         showsVerticalScrollIndicator={false}
       >
         {error ? (
