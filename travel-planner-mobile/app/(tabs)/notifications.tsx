@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useScreenInsets } from '@/hooks/useScreenInsets';
 import {
   getNotifications,
   markAllAsRead,
@@ -51,7 +51,7 @@ const SECTION_ORDER = ['Today', 'Yesterday', 'This Week'];
 
 export default function NotificationsScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { top, tabScrollBottom } = useScreenInsets();
   useRequireAuth();
   const [list, setList] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,7 +127,7 @@ export default function NotificationsScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.screen, styles.centered]}>
+      <View style={[styles.screen, styles.centered, { paddingTop: top }]}>
         <ActivityIndicator size="large" color={GREEN} />
       </View>
     );
@@ -135,7 +135,7 @@ export default function NotificationsScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: top }]}>
         <View style={styles.headerTop}>
           <Text style={styles.title}>Notifications</Text>
           <TouchableOpacity
@@ -188,7 +188,7 @@ export default function NotificationsScreen() {
           data={grouped}
           keyExtractor={([label]) => label}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.listContent, { paddingBottom: 100 + insets.bottom }]}
+          contentContainerStyle={[styles.listContent, { paddingBottom: tabScrollBottom }]}
           renderItem={({ item: [label, items] }) => (
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>{label}</Text>

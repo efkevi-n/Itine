@@ -23,6 +23,7 @@ import { useBiometricLock } from "@/hooks/useBiometricLock";
 import { OFFLINE_MESSAGES } from "@/constants/offline";
 import { BiometricGate } from "@/components/BiometricGate";
 import { showToast } from "@/utils/toastStore";
+import { useScreenInsets } from "@/hooks/useScreenInsets";
 
 const QR_REFRESH_INTERVAL = 30;
 const PASS_CACHE_PREFIX = "trippass_";
@@ -62,7 +63,7 @@ function getTripTitle(destination: string): string {
 
 export default function QRPassScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { top, stackScrollBottomCompact: scrollBottom, contentPaddingHorizontal } = useScreenInsets();
   const { isOnline } = useConnectivity();
   const { tripId, jti: paramJti } = useLocalSearchParams<{
     tripId?: string;
@@ -82,6 +83,15 @@ export default function QRPassScreen() {
   const [offlineMode, setOfflineMode] = useState(false);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const loadedByJtiRef = useRef(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
+  }, [fadeAnim]);
 
   const currentTripId =
     (typeof tripId === "string" ? tripId : undefined) ??
@@ -367,7 +377,7 @@ export default function QRPassScreen() {
 
   if (loading && !jti) {
     return (
-      <View style={[styles.screen, styles.centered]}>
+      <View style={[styles.screen, styles.centered, { paddingTop: top }]}>
         <ActivityIndicator size="large" color={GREEN} />
         <Text style={styles.loadingText}>Loading your pass...</Text>
       </View>
@@ -376,7 +386,7 @@ export default function QRPassScreen() {
 
   if (loadError && !offlineMode) {
     return (
-      <View style={[styles.screen, styles.centered]}>
+      <View style={[styles.screen, styles.centered, { paddingTop: top }]}>
         <View style={styles.errorIconWrap}>
           <Feather name="alert-circle" size={32} color={GREEN} />
         </View>
@@ -406,7 +416,7 @@ export default function QRPassScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: top }]}>
         <TouchableOpacity
           style={styles.headerBtn}
           onPress={() => router.back()}
@@ -428,7 +438,7 @@ export default function QRPassScreen() {
         style={styles.scroll}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: 32 + insets.bottom },
+          { paddingBottom: scrollBottom, paddingHorizontal: contentPaddingHorizontal },
         ]}
         showsVerticalScrollIndicator={false}
         onScroll={resetLockTimer}

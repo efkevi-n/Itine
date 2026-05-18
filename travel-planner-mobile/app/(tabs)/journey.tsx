@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { useScreenInsets } from '@/hooks/useScreenInsets';
 import { bookingsApi } from '@/api/bookings';
 import { itineraryApi } from '@/api/itinerary';
 import { tripsApi } from '@/api/trips';
@@ -308,6 +309,7 @@ function buildHotelData(trip: JourneyTrip, bookings: RawRecord[]): HotelBookingD
 
 export default function JourneyScreen() {
   const router = useRouter();
+  const { top, tabScrollBottom, contentPaddingHorizontal } = useScreenInsets();
   const colorScheme = useColorScheme();
   const mode: Mode = colorScheme === 'dark' ? 'dark' : 'light';
   const colors = theme[mode];
@@ -443,7 +445,14 @@ export default function JourneyScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: top,
+            paddingBottom: tabScrollBottom,
+            paddingHorizontal: contentPaddingHorizontal,
+          },
+        ]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />
         }
@@ -562,9 +571,6 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: {
     gap: 20,
-    paddingBottom: 56,
-    paddingHorizontal: 20,
-    paddingTop: 58,
   },
   glow: {
     borderRadius: 999,
