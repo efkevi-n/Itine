@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, Linking } from 'react-native';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
@@ -43,9 +44,10 @@ export const unstable_settings = {
   initialRouteName: 'index',
 };
 
-export default function RootLayout() {
+function RootLayoutContent() {
   const colorScheme = useColorScheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { status } = useConnectivity();
   const prevStatusRef = useRef<typeof status>(status);
   const [showSyncToast, setShowSyncToast] = useState(false);
@@ -148,7 +150,7 @@ export default function RootLayout() {
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <ToastContainer />
         {showSyncToast ? (
-          <View style={styles.syncToast}>
+          <View style={[styles.syncToast, { paddingTop: insets.top + 8 }]}>
             <Text style={styles.syncToastText}>{OFFLINE_MESSAGES.backOnlineSyncing}</Text>
           </View>
         ) : null}
@@ -163,6 +165,7 @@ export default function RootLayout() {
           <Stack.Screen name="trip-detail" />
           <Stack.Screen name="edit-itinerary" />
           <Stack.Screen name="budget-breakdown" />
+          <Stack.Screen name="privacy-security" />
           <Stack.Screen name="active-trip" />
           <Stack.Screen name="qr-pass" />
           <Stack.Screen name="modal" options={{ presentation: 'modal', headerShown: true, title: 'Modal' }} />
@@ -173,6 +176,14 @@ export default function RootLayout() {
   );
 }
 
+export default function RootLayout() {
+  return (
+    <SafeAreaProvider>
+      <RootLayoutContent />
+    </SafeAreaProvider>
+  );
+}
+
 const styles = StyleSheet.create({
   syncToast: {
     position: 'absolute',
@@ -180,7 +191,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: theme.colors.success,
-    paddingVertical: theme.radius.sm,
+    paddingBottom: theme.radius.sm,
     paddingHorizontal: theme.radius.md,
     zIndex: 9999,
     alignItems: 'center',
