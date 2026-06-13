@@ -13,21 +13,11 @@
 
 ---
 
-## Demo
+## App logo
 
 <p align="center">
-  <img src="docs/preview.png" alt="AI Budget Travel Planner app preview" width="280" />
+  <img src="docs/preview.png" alt="ITINE — AI Budget Travel Planner logo" width="320" />
 </p>
-
-<p align="center">
-  <sub>Replace <code>docs/preview.png</code> with a screen recording at <code>docs/demo.gif</code> when ready.</sub>
-</p>
-
-<!-- When you have a recording, swap the image above for:
-<p align="center">
-  <img src="docs/demo.gif" alt="AI Budget Travel Planner app demo" width="320" />
-</p>
--->
 
 ---
 
@@ -93,12 +83,6 @@ The app uses a production backend by default. To point at a different API:
 # travel-planner-mobile/.env
 EXPO_PUBLIC_API_URL=https://your-api-url.com
 ```
-
-### Adding a demo GIF
-
-1. Record the app in a simulator or on device (iOS: QuickTime, Android: `adb screenrecord`, or a tool like [LICEcap](https://www.cockos.com/licecap/))
-2. Save the file as `docs/demo.gif`
-3. Commit and push — GitHub will render it in this README automatically
 
 ---
 
